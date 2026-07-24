@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, LineChart, Line, Legend
+  PieChart, Pie, Cell, LineChart, Line, Legend, LabelList
 } from "recharts";
 
 const SUPABASE_URL = "https://zvqoxgugzfxbkhmqgvdk.supabase.co";
@@ -120,8 +120,44 @@ function ComingSoonScreen({ profil, onLock }) {
   );
 }
 
+function matchSupplierBucket(name) {
+  const n = (name || "").toLowerCase();
+  if (n.includes("darty")) return "darty";
+  if (n.includes("revolog")) return "revolog";
+  return null;
+}
+
+function pivotTendanceFournisseur(rows) {
+  const byMonth = new Map();
+  for (const r of rows || []) {
+    const bucket = matchSupplierBucket(r.supplier_name);
+    if (!bucket) continue;
+    if (!byMonth.has(r.mois)) byMonth.set(r.mois, { mois: r.mois });
+    const row = byMonth.get(r.mois);
+    const poidsConformeT = (r.poids_conforme_kg || 0) / 1000;
+    const poidsNonConformeT = (r.poids_non_conforme_kg || 0) / 1000;
+    const total = r.nb_devices || 0;
+    const taux = total > 0 ? Math.round(((r.nb_conformes || 0) / total) * 100) : null;
+    row[`${bucket}_conforme`] = Math.round(poidsConformeT * 100) / 100;
+    row[`${bucket}_non_conforme`] = Math.round(poidsNonConformeT * 100) / 100;
+    row[`${bucket}_taux`] = taux;
+  }
+  return [...byMonth.values()].sort((a, b) => a.mois.localeCompare(b.mois));
+}
+
+function TauxLabel({ x, y, width, value }) {
+  if (value === null || value === undefined) return null;
+  return (
+    <text x={x + width / 2} y={y - 6} textAnchor="middle" fill={COLORS.text} fontSize={11} fontFamily="'IBM Plex Mono', monospace">
+      {value}%
+    </text>
+  );
+}
+
 function Dashboard({ data, onRefresh, onLock }) {
-  const { par_type = [], totaux = {}, tendance = [] } = data || {};
+  const { par_type = [], totaux = {}, tendance_fournisseur = [] } = data || {};
+  const poidsTotalTonnes = totaux.poids_total_kg != null ? Math.round((totaux.poids_total_kg / 1000) * 100) / 100 : "—";
+  const tendanceFournisseurData = pivotTendanceFournisseur(tendance_fournisseur);
   const pieData = [
     { name: "Conformes", value: totaux.total_conformes ?? 0, color: COLORS.teal },
     { name: "Non conformes", value: totaux.total_non_conformes ?? 0, color: COLORS.red },
@@ -153,7 +189,7 @@ function Dashboard({ data, onRefresh, onLock }) {
         <KpiCard label="Conformes" value={totaux.total_conformes ?? "—"} accent={COLORS.teal} />
         <KpiCard label="Non conformes" value={totaux.total_non_conformes ?? "—"} accent={COLORS.red} />
         <KpiCard label="En attente" value={totaux.total_en_attente ?? "—"} accent={COLORS.slate} />
-        <KpiCard label="Poids total" value={totaux.poids_total_kg ?? "—"} unit="kg" accent={COLORS.amber} />
+        <KpiCard label="Poids total" value={poidsTotalTonnes} unit="t" accent={COLORS.amber} />
       </div>
 
       <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 14 }}>
@@ -182,16 +218,24 @@ function Dashboard({ data, onRefresh, onLock }) {
         </Panel>
       </div>
 
-      {tendance.length > 0 && (
-        <Panel title="Évolution mensuelle" height={240}>
+      {tendanceFournisseurData.length > 0 && (
+        <Panel title="Évolution mensuelle par fournisseur (tonnes)" height={300}>
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={tendance} margin={{ left: -10, right: 10 }}>
+            <BarChart data={tendanceFournisseurData} margin={{ top: 24, left: -10, right: 10 }}>
               <CartesianGrid stroke={COLORS.panelBorder} vertical={false} />
               <XAxis dataKey="mois" tick={{ fill: COLORS.muted, fontSize: 11 }} />
-              <YAxis tick={{ fill: COLORS.muted, fontSize: 11 }} />
+              <YAxis tick={{ fill: COLORS.muted, fontSize: 11 }} unit=" t" />
               <Tooltip contentStyle={{ background: COLORS.panel, border: `1px solid ${COLORS.panelBorder}`, borderRadius: 4 }} labelStyle={{ color: COLORS.text }} />
-              <Line type="monotone" dataKey="nb_devices" name="Appareils" stroke={COLORS.teal} strokeWidth={2} dot={false} />
-            </LineChart>
+              <Legend wrapperStyle={{ fontSize: 12, color: COLORS.muted }} />
+              <Bar dataKey="darty_conforme" name="Darty — conforme" stackId="darty" fill={COLORS.teal} />
+              <Bar dataKey="darty_non_conforme" name="Darty — non conforme" stackId="darty" fill={COLORS.red}>
+                <LabelList dataKey="darty_taux" content={TauxLabel} />
+              </Bar>
+              <Bar dataKey="revolog_conforme" name="Revolog — conforme" stackId="revolog" fill={COLORS.teal} fillOpacity={0.55} />
+              <Bar dataKey="revolog_non_conforme" name="Revolog — non conforme" stackId="revolog" fill={COLORS.red} fillOpacity={0.55}>
+                <LabelList dataKey="revolog_taux" content={TauxLabel} />
+              </Bar>
+            </BarChart>
           </ResponsiveContainer>
         </Panel>
       )}
