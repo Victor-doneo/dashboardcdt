@@ -10,6 +10,7 @@ const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 const COLORS = {
   bg: "#1B2124", panel: "#232A2E", panelBorder: "#323B40", text: "#E8EAE6",
   muted: "#8B9499", teal: "#4FA894", amber: "#E0A458", slate: "#6B7B8C", red: "#C97064",
+  blue: "#5B8FAE", orange: "#D9954D",
 };
 const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap');`;
 
@@ -227,7 +228,7 @@ function Dashboard({ data, onRefresh, onLock }) {
       </div>
 
       {tendanceFournisseurData.length > 0 && (
-        <Panel title="Évolution mensuelle par fournisseur (tonnes)" height={300}>
+        <Panel title="Évolution mensuelle par source (tonnes)" height={300}>
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={tendanceFournisseurData} margin={{ top: 24, left: -10, right: 10 }}>
               <CartesianGrid stroke={COLORS.panelBorder} vertical={false} />
@@ -239,8 +240,8 @@ function Dashboard({ data, onRefresh, onLock }) {
               <Bar dataKey="darty_non_conforme" name="Darty — non conforme" stackId="darty" fill={COLORS.red}>
                 <LabelList dataKey="darty_taux" content={TauxLabel} />
               </Bar>
-              <Bar dataKey="revoloop_conforme" name="Revoloop — conforme" stackId="revoloop" fill={COLORS.teal} fillOpacity={0.55} />
-              <Bar dataKey="revoloop_non_conforme" name="Revoloop — non conforme" stackId="revoloop" fill={COLORS.red} fillOpacity={0.55}>
+              <Bar dataKey="revoloop_conforme" name="Revoloop — conforme" stackId="revoloop" fill={COLORS.blue} />
+              <Bar dataKey="revoloop_non_conforme" name="Revoloop — non conforme" stackId="revoloop" fill={COLORS.orange}>
                 <LabelList dataKey="revoloop_taux" content={TauxLabel} />
               </Bar>
             </BarChart>
