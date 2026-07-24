@@ -126,7 +126,7 @@ const TARGET_MONTHS = ["2026-06-01", "2026-07-01", "2026-08-01"];
 function matchSupplierBucket(name) {
   const n = (name || "").toLowerCase();
   if (n.includes("darty")) return "darty";
-  if (n.includes("revoloop")) return "revoloop";
+  if (n.includes("revolog")) return "revolog";
   return null;
 }
 
@@ -136,7 +136,7 @@ function pivotTendanceFournisseur(rows) {
     byMonth.set(m, {
       mois: m,
       darty_conforme: 0, darty_non_conforme: 0, darty_taux: null,
-      revoloop_conforme: 0, revoloop_non_conforme: 0, revoloop_taux: null,
+      revolog_conforme: 0, revolog_non_conforme: 0, revolog_taux: null,
     });
   }
   for (const r of rows || []) {
@@ -240,9 +240,9 @@ function Dashboard({ data, onRefresh, onLock }) {
               <Bar dataKey="darty_non_conforme" name="Darty — non conforme" stackId="darty" fill={COLORS.red}>
                 <LabelList dataKey="darty_taux" content={TauxLabel} />
               </Bar>
-              <Bar dataKey="revoloop_conforme" name="Revoloop — conforme" stackId="revoloop" fill={COLORS.blue} />
-              <Bar dataKey="revoloop_non_conforme" name="Revoloop — non conforme" stackId="revoloop" fill={COLORS.orange}>
-                <LabelList dataKey="revoloop_taux" content={TauxLabel} />
+              <Bar dataKey="revolog_conforme" name="Revolog — conforme" stackId="revolog" fill={COLORS.blue} />
+              <Bar dataKey="revolog_non_conforme" name="Revolog — non conforme" stackId="revolog" fill={COLORS.orange}>
+                <LabelList dataKey="revolog_taux" content={TauxLabel} />
               </Bar>
             </BarChart>
           </ResponsiveContainer>
