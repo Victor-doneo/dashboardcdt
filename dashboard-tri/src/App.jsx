@@ -92,6 +92,34 @@ function Panel({ title, children, height = 300 }) {
   );
 }
 
+const PROFIL_LABELS = {
+  centre_tri: "Centre de tri",
+  seconde_vie: "Opérateur de seconde vie",
+  data_quality: "Data quality",
+};
+
+function ComingSoonScreen({ profil, onLock }) {
+  return (
+    <div style={{ minHeight: "100%", display: "flex", alignItems: "center", justifyContent: "center", background: COLORS.bg, fontFamily: "'IBM Plex Sans', sans-serif", padding: 24 }}>
+      <style>{FONT_IMPORT}</style>
+      <div style={{ background: COLORS.panel, border: `1px solid ${COLORS.panelBorder}`, borderRadius: 4, padding: "48px 40px", width: 380, textAlign: "center" }}>
+        <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, letterSpacing: 2, color: COLORS.teal, textTransform: "uppercase", marginBottom: 10 }}>
+          {PROFIL_LABELS[profil] || profil}
+        </div>
+        <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 22, color: COLORS.text, margin: "0 0 12px 0" }}>
+          En cours de création
+        </h1>
+        <p style={{ color: COLORS.muted, fontSize: 14, lineHeight: 1.5, margin: "0 0 28px 0" }}>
+          Ce tableau de bord n'est pas encore prêt. Revenez un peu plus tard.
+        </p>
+        <button onClick={onLock} style={{ background: "transparent", border: `1px solid ${COLORS.panelBorder}`, color: COLORS.muted, padding: "8px 16px", borderRadius: 3, cursor: "pointer", fontSize: 13, fontFamily: "'IBM Plex Mono', monospace" }}>
+          Verrouiller
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function Dashboard({ data, onRefresh, onLock }) {
   const { par_type = [], totaux = {}, tendance = [] } = data || {};
   const pieData = [
@@ -171,6 +199,48 @@ function Dashboard({ data, onRefresh, onLock }) {
   );
 }
 
+function AdminDashboard({ data, onRefresh, onLock }) {
+  const [tab, setTab] = useState("centre_tri");
+  const tabs = [
+    { key: "centre_tri", label: "Centre de tri" },
+    { key: "seconde_vie", label: "Opérateur de seconde vie" },
+    { key: "data_quality", label: "Data quality" },
+  ];
+
+  return (
+    <div style={{ minHeight: "100%", background: COLORS.bg }}>
+      <div style={{ display: "flex", gap: 4, padding: "16px 28px 0", borderBottom: `1px solid ${COLORS.panelBorder}` }}>
+        <style>{FONT_IMPORT}</style>
+        {tabs.map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setTab(t.key)}
+            style={{
+              background: "transparent",
+              border: "none",
+              borderBottom: tab === t.key ? `2px solid ${COLORS.teal}` : "2px solid transparent",
+              color: tab === t.key ? COLORS.text : COLORS.muted,
+              padding: "10px 16px",
+              cursor: "pointer",
+              fontFamily: "'IBM Plex Mono', monospace",
+              fontSize: 12,
+              letterSpacing: 0.5,
+              textTransform: "uppercase",
+            }}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+      {tab === "centre_tri" ? (
+        <Dashboard data={data} onRefresh={onRefresh} onLock={onLock} />
+      ) : (
+        <ComingSoonScreen profil={tab} onLock={onLock} />
+      )}
+    </div>
+  );
+}
+
 export default function App() {
   const [token, setToken] = useState(null);
   const [data, setData] = useState(null);
@@ -182,5 +252,11 @@ export default function App() {
   const handleLock = () => { setToken(null); setData(null); };
 
   if (!token) return <TokenScreen onUnlock={handleUnlock} />;
-  return <Dashboard data={data} onRefresh={handleRefresh} onLock={handleLock} />;
+  if (data?.profil === "admin") {
+    return <AdminDashboard data={data} onRefresh={handleRefresh} onLock={handleLock} />;
+  }
+  if (data?.profil === "centre_tri") {
+    return <Dashboard data={data} onRefresh={handleRefresh} onLock={handleLock} />;
+  }
+  return <ComingSoonScreen profil={data?.profil} onLock={handleLock} />;
 }
