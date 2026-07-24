@@ -120,19 +120,27 @@ function ComingSoonScreen({ profil, onLock }) {
   );
 }
 
+const TARGET_MONTHS = ["2026-06-01", "2026-07-01", "2026-08-01"];
+
 function matchSupplierBucket(name) {
   const n = (name || "").toLowerCase();
   if (n.includes("darty")) return "darty";
-  if (n.includes("revolog")) return "revolog";
+  if (n.includes("revoloop")) return "revoloop";
   return null;
 }
 
 function pivotTendanceFournisseur(rows) {
   const byMonth = new Map();
+  for (const m of TARGET_MONTHS) {
+    byMonth.set(m, {
+      mois: m,
+      darty_conforme: 0, darty_non_conforme: 0, darty_taux: null,
+      revoloop_conforme: 0, revoloop_non_conforme: 0, revoloop_taux: null,
+    });
+  }
   for (const r of rows || []) {
     const bucket = matchSupplierBucket(r.supplier_name);
-    if (!bucket) continue;
-    if (!byMonth.has(r.mois)) byMonth.set(r.mois, { mois: r.mois });
+    if (!bucket || !byMonth.has(r.mois)) continue;
     const row = byMonth.get(r.mois);
     const poidsConformeT = (r.poids_conforme_kg || 0) / 1000;
     const poidsNonConformeT = (r.poids_non_conforme_kg || 0) / 1000;
@@ -223,7 +231,7 @@ function Dashboard({ data, onRefresh, onLock }) {
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={tendanceFournisseurData} margin={{ top: 24, left: -10, right: 10 }}>
               <CartesianGrid stroke={COLORS.panelBorder} vertical={false} />
-              <XAxis dataKey="mois" tick={{ fill: COLORS.muted, fontSize: 11 }} />
+              <XAxis dataKey="mois" tick={{ fill: COLORS.muted, fontSize: 11 }} tickFormatter={(m) => new Date(m).toLocaleDateString("fr-FR", { month: "short", year: "numeric" })} />
               <YAxis tick={{ fill: COLORS.muted, fontSize: 11 }} unit=" t" />
               <Tooltip contentStyle={{ background: COLORS.panel, border: `1px solid ${COLORS.panelBorder}`, borderRadius: 4 }} labelStyle={{ color: COLORS.text }} />
               <Legend wrapperStyle={{ fontSize: 12, color: COLORS.muted }} />
@@ -231,9 +239,9 @@ function Dashboard({ data, onRefresh, onLock }) {
               <Bar dataKey="darty_non_conforme" name="Darty — non conforme" stackId="darty" fill={COLORS.red}>
                 <LabelList dataKey="darty_taux" content={TauxLabel} />
               </Bar>
-              <Bar dataKey="revolog_conforme" name="Revolog — conforme" stackId="revolog" fill={COLORS.teal} fillOpacity={0.55} />
-              <Bar dataKey="revolog_non_conforme" name="Revolog — non conforme" stackId="revolog" fill={COLORS.red} fillOpacity={0.55}>
-                <LabelList dataKey="revolog_taux" content={TauxLabel} />
+              <Bar dataKey="revoloop_conforme" name="Revoloop — conforme" stackId="revoloop" fill={COLORS.teal} fillOpacity={0.55} />
+              <Bar dataKey="revoloop_non_conforme" name="Revoloop — non conforme" stackId="revoloop" fill={COLORS.red} fillOpacity={0.55}>
+                <LabelList dataKey="revoloop_taux" content={TauxLabel} />
               </Bar>
             </BarChart>
           </ResponsiveContainer>
