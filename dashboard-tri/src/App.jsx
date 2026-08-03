@@ -266,7 +266,7 @@ function OSVDashboard({ data, onLock, token }) {
         </div>
       </Panel>
 
-      <Panel title="Lots par client (hors ECOSYSTEM)" height={lots.length * 40 + 60}>
+      <Panel title="Lots par client" height={lots.length * 40 + 60}>
         <div style={{ height: "100%", overflowY: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
             <thead>
