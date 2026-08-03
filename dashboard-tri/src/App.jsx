@@ -163,6 +163,60 @@ function pivotTendanceFournisseur(rows) {
   return [...byMonth.values()].sort((a, b) => a.mois.localeCompare(b.mois));
 }
 
+function OSVDashboard({ data, onLock }) {
+  const rows = data?.osv_par_type || [];
+  const total = rows.reduce((acc, r) => acc + (r.nb_devices || 0), 0);
+
+  return (
+    <div style={{ minHeight: "100%", background: COLORS.bg, fontFamily: "'IBM Plex Sans', sans-serif", padding: 28 }}>
+      <style>{FONT_IMPORT}</style>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 24 }}>
+        <div>
+          <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, letterSpacing: 2, color: COLORS.teal, textTransform: "uppercase", marginBottom: 6 }}>
+            Ligne de tri — opérateur de seconde vie
+          </div>
+          <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 26, color: COLORS.text, margin: 0 }}>
+            Appareils en attente de vente (PENDING)
+          </h1>
+        </div>
+        {onLock && (
+          <button onClick={onLock} style={{ background: "transparent", border: `1px solid ${COLORS.panelBorder}`, color: COLORS.muted, padding: "8px 16px", borderRadius: 3, cursor: "pointer", fontSize: 13, fontFamily: "'IBM Plex Mono', monospace" }}>
+            Verrouiller
+          </button>
+        )}
+      </div>
+
+      <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 20 }}>
+        <KpiCard label="Total appareils" value={total} accent={COLORS.teal} />
+      </div>
+
+      <Panel title="Répartition par catégorie et type" height={rows.length * 40 + 60}>
+        <div style={{ height: "100%", overflowY: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <thead>
+              <tr style={{ borderBottom: `1px solid ${COLORS.panelBorder}` }}>
+                <th style={{ textAlign: "left", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Catégorie</th>
+                <th style={{ textAlign: "left", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Type</th>
+                <th style={{ textAlign: "right", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Appareils</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r, i) => (
+                <tr key={i} style={{ borderBottom: `1px solid ${COLORS.panelBorder}` }}>
+                  <td style={{ padding: "8px 6px", color: COLORS.text }}>{r.categorie ?? "—"}</td>
+                  <td style={{ padding: "8px 6px", color: COLORS.text }}>{r.type ?? "—"}</td>
+                  <td style={{ padding: "8px 6px", color: COLORS.text, textAlign: "right", fontFamily: "'IBM Plex Mono', monospace" }}>{r.nb_devices}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Panel>
+    </div>
+  );
+}
+
+
 function TauxLabel({ x, y, width, value }) {
   if (value === null || value === undefined) return null;
   return (
@@ -343,7 +397,8 @@ function AdminDashboard({ token, data, onRefresh, onLock }) {
       </div>
       {tab === "centre_tri" && <Dashboard data={data} onRefresh={onRefresh} onLock={onLock} />}
       {tab === "facturation" && <FacturationDashboard data={data} />}
-      {(tab === "seconde_vie" || tab === "data_quality") && <ComingSoonScreen profil={tab} onLock={onLock} />}
+      {tab === "seconde_vie" && <OSVDashboard data={data} />}
+      {tab === "data_quality" && <ComingSoonScreen profil={tab} onLock={onLock} />}
     </div>
   );
 }
@@ -365,6 +420,9 @@ export default function App() {
   }
   if (data?.profil === "centre_tri") {
     return <Dashboard data={data} onRefresh={handleRefresh} onLock={handleLock} />;
+  }
+  if (data?.profil === "seconde_vie") {
+    return <OSVDashboard data={data} onLock={handleLock} />;
   }
   return <ComingSoonScreen profil={data?.profil} onLock={handleLock} />;
 }
