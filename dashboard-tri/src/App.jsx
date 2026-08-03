@@ -176,7 +176,7 @@ function OSVDashboard({ data, onLock }) {
             Ligne de tri — opérateur de seconde vie
           </div>
           <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 26, color: COLORS.text, margin: 0 }}>
-            Appareils en attente de vente (PENDING)
+            Stock appareils pour réemploi
           </h1>
         </div>
         {onLock && (
