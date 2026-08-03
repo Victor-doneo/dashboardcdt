@@ -433,13 +433,32 @@ function Dashboard({ data, onRefresh, onLock }) {
   );
 }
 
+function pivotFacturation(rows) {
+  const byMonth = new Map();
+  for (const m of TARGET_MONTHS) {
+    byMonth.set(m, { mois: m, tonnes: 0, nb_eligible_tri: 0, nb_palettes: 0 });
+  }
+  for (const r of rows || []) {
+    if (!byMonth.has(r.mois)) continue;
+    byMonth.set(r.mois, {
+      mois: r.mois,
+      tonnes: r.tonnes || 0,
+      nb_eligible_tri: r.nb_eligible_tri || 0,
+      nb_palettes: r.nb_palettes || 0,
+    });
+  }
+  return [...byMonth.values()].sort((a, b) => a.mois.localeCompare(b.mois));
+}
+
 function FacturationDashboard({ data }) {
-  const rows = (data?.facturation || []).map((r) => ({
+  const months = pivotFacturation(data?.facturation);
+  const rows = months.map((r) => ({
     mois: r.mois,
-    montant_tonnage: Math.round((r.tonnes || 0) * 98 * 100) / 100,
-    montant_eligible: Math.round((r.nb_eligible_tri || 0) * 2 * 100) / 100,
+    montant_tonnage: Math.round(r.tonnes * 98 * 100) / 100,
+    montant_eligible: Math.round(r.nb_eligible_tri * 2 * 100) / 100,
+    montant_palettes: Math.round(r.nb_palettes * 8 * 100) / 100,
   }));
-  const total = rows.reduce((acc, r) => acc + r.montant_tonnage + r.montant_eligible, 0);
+  const total = rows.reduce((acc, r) => acc + r.montant_tonnage + r.montant_eligible + r.montant_palettes, 0);
 
   return (
     <div style={{ minHeight: "100%", background: COLORS.bg, fontFamily: "'IBM Plex Sans', sans-serif", padding: 28 }}>
@@ -465,6 +484,7 @@ function FacturationDashboard({ data }) {
             <Legend wrapperStyle={{ fontSize: 12, color: COLORS.muted }} />
             <Bar dataKey="montant_tonnage" name="98 € × tonnes" fill={COLORS.teal} radius={[3, 3, 0, 0]} />
             <Bar dataKey="montant_eligible" name="2 € × lignes éligibles" fill={COLORS.amber} radius={[3, 3, 0, 0]} />
+            <Bar dataKey="montant_palettes" name="8 € × palettes" fill={COLORS.blue} radius={[3, 3, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </Panel>
