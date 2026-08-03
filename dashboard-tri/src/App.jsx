@@ -252,12 +252,52 @@ function Dashboard({ data, onRefresh, onLock }) {
   );
 }
 
+function FacturationDashboard({ data }) {
+  const rows = (data?.facturation || []).map((r) => ({
+    mois: r.mois,
+    montant_tonnage: Math.round((r.tonnes || 0) * 98 * 100) / 100,
+    montant_eligible: Math.round((r.nb_eligible_tri || 0) * 2 * 100) / 100,
+  }));
+  const total = rows.reduce((acc, r) => acc + r.montant_tonnage + r.montant_eligible, 0);
+
+  return (
+    <div style={{ minHeight: "100%", background: COLORS.bg, fontFamily: "'IBM Plex Sans', sans-serif", padding: 28 }}>
+      <style>{FONT_IMPORT}</style>
+      <div style={{ marginBottom: 24 }}>
+        <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, letterSpacing: 2, color: COLORS.teal, textTransform: "uppercase", marginBottom: 6 }}>
+          Ligne de tri — admin
+        </div>
+        <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 26, color: COLORS.text, margin: 0 }}>Facturation</h1>
+      </div>
+
+      <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 20 }}>
+        <KpiCard label="Total sur la période" value={Math.round(total * 100) / 100} unit="€" accent={COLORS.amber} />
+      </div>
+
+      <Panel title="Montants mensuels (€)" height={340}>
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={rows} margin={{ left: -10, right: 10 }}>
+            <CartesianGrid stroke={COLORS.panelBorder} vertical={false} />
+            <XAxis dataKey="mois" tick={{ fill: COLORS.muted, fontSize: 11 }} tickFormatter={(m) => new Date(m).toLocaleDateString("fr-FR", { month: "short", year: "numeric" })} />
+            <YAxis tick={{ fill: COLORS.muted, fontSize: 11 }} unit=" €" />
+            <Tooltip contentStyle={{ background: COLORS.panel, border: `1px solid ${COLORS.panelBorder}`, borderRadius: 4 }} labelStyle={{ color: COLORS.text }} />
+            <Legend wrapperStyle={{ fontSize: 12, color: COLORS.muted }} />
+            <Bar dataKey="montant_tonnage" name="98 € × tonnes" fill={COLORS.teal} radius={[3, 3, 0, 0]} />
+            <Bar dataKey="montant_eligible" name="2 € × lignes éligibles" fill={COLORS.amber} radius={[3, 3, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </Panel>
+    </div>
+  );
+}
+
 function AdminDashboard({ data, onRefresh, onLock }) {
   const [tab, setTab] = useState("centre_tri");
   const tabs = [
     { key: "centre_tri", label: "Centre de tri" },
     { key: "seconde_vie", label: "Opérateur de seconde vie" },
     { key: "data_quality", label: "Data quality" },
+    { key: "facturation", label: "Facturation" },
   ];
 
   return (
@@ -285,14 +325,13 @@ function AdminDashboard({ data, onRefresh, onLock }) {
           </button>
         ))}
       </div>
-      {tab === "centre_tri" ? (
-        <Dashboard data={data} onRefresh={onRefresh} onLock={onLock} />
-      ) : (
-        <ComingSoonScreen profil={tab} onLock={onLock} />
-      )}
+      {tab === "centre_tri" && <Dashboard data={data} onRefresh={onRefresh} onLock={onLock} />}
+      {tab === "facturation" && <FacturationDashboard data={data} />}
+      {(tab === "seconde_vie" || tab === "data_quality") && <ComingSoonScreen profil={tab} onLock={onLock} />}
     </div>
   );
 }
+
 
 export default function App() {
   const [token, setToken] = useState(null);
