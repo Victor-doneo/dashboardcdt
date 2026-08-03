@@ -165,6 +165,7 @@ function pivotTendanceFournisseur(rows) {
 
 function OSVDashboard({ data, onLock }) {
   const rows = data?.osv_par_type || [];
+  const lots = data?.osv_lots || [];
   const total = rows.reduce((acc, r) => acc + (r.nb_devices || 0), 0);
 
   return (
@@ -205,6 +206,31 @@ function OSVDashboard({ data, onLock }) {
                 <tr key={i} style={{ borderBottom: `1px solid ${COLORS.panelBorder}` }}>
                   <td style={{ padding: "8px 6px", color: COLORS.text }}>{r.categorie ?? "—"}</td>
                   <td style={{ padding: "8px 6px", color: COLORS.text }}>{r.type ?? "—"}</td>
+                  <td style={{ padding: "8px 6px", color: COLORS.text, textAlign: "right", fontFamily: "'IBM Plex Mono', monospace" }}>{r.nb_devices}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Panel>
+
+      <Panel title="Lots par client (hors ECOSYSTEM)" height={lots.length * 40 + 60}>
+        <div style={{ height: "100%", overflowY: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <thead>
+              <tr style={{ borderBottom: `1px solid ${COLORS.panelBorder}` }}>
+                <th style={{ textAlign: "left", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Client</th>
+                <th style={{ textAlign: "left", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Lot</th>
+                <th style={{ textAlign: "left", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Catégorie</th>
+                <th style={{ textAlign: "right", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Appareils</th>
+              </tr>
+            </thead>
+            <tbody>
+              {lots.map((r, i) => (
+                <tr key={i} style={{ borderBottom: `1px solid ${COLORS.panelBorder}` }}>
+                  <td style={{ padding: "8px 6px", color: COLORS.text }}>{r.client_name ?? "—"}</td>
+                  <td style={{ padding: "8px 6px", color: COLORS.text }}>{r.sale_lot_name ?? "—"}</td>
+                  <td style={{ padding: "8px 6px", color: COLORS.text }}>{r.categ_code ?? "—"}</td>
                   <td style={{ padding: "8px 6px", color: COLORS.text, textAlign: "right", fontFamily: "'IBM Plex Mono', monospace" }}>{r.nb_devices}</td>
                 </tr>
               ))}
