@@ -163,9 +163,26 @@ function pivotTendanceFournisseur(rows) {
   return [...byMonth.values()].sort((a, b) => a.mois.localeCompare(b.mois));
 }
 
+function pivotLotsByCateg(lots) {
+  const byLot = new Map();
+  for (const r of lots || []) {
+    const key = `${r.client_name || ""}|${r.sale_lot_name || ""}`;
+    if (!byLot.has(key)) {
+      byLot.set(key, { client_name: r.client_name, sale_lot_name: r.sale_lot_name, gemf: 0, gemhf: 0 });
+    }
+    const row = byLot.get(key);
+    const categ = (r.categ_code || "").toUpperCase();
+    if (categ === "GEMF") row.gemf += r.nb_devices || 0;
+    else if (categ === "GEMHF") row.gemhf += r.nb_devices || 0;
+  }
+  return [...byLot.values()]
+    .map((r) => ({ ...r, total: r.gemf + r.gemhf }))
+    .sort((a, b) => (a.client_name || "").localeCompare(b.client_name || "") || (a.sale_lot_name || "").localeCompare(b.sale_lot_name || ""));
+}
+
 function OSVDashboard({ data, onLock }) {
   const rows = data?.osv_par_type || [];
-  const lots = data?.osv_lots || [];
+  const lots = pivotLotsByCateg(data?.osv_lots);
   const total = rows.reduce((acc, r) => acc + (r.nb_devices || 0), 0);
 
   return (
@@ -221,8 +238,9 @@ function OSVDashboard({ data, onLock }) {
               <tr style={{ borderBottom: `1px solid ${COLORS.panelBorder}` }}>
                 <th style={{ textAlign: "left", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Client</th>
                 <th style={{ textAlign: "left", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Lot</th>
-                <th style={{ textAlign: "left", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Catégorie</th>
-                <th style={{ textAlign: "right", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Appareils</th>
+                <th style={{ textAlign: "right", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>GEMF</th>
+                <th style={{ textAlign: "right", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>GEMHF</th>
+                <th style={{ textAlign: "right", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Total</th>
               </tr>
             </thead>
             <tbody>
@@ -230,8 +248,9 @@ function OSVDashboard({ data, onLock }) {
                 <tr key={i} style={{ borderBottom: `1px solid ${COLORS.panelBorder}` }}>
                   <td style={{ padding: "8px 6px", color: COLORS.text }}>{r.client_name ?? "—"}</td>
                   <td style={{ padding: "8px 6px", color: COLORS.text }}>{r.sale_lot_name ?? "—"}</td>
-                  <td style={{ padding: "8px 6px", color: COLORS.text }}>{r.categ_code ?? "—"}</td>
-                  <td style={{ padding: "8px 6px", color: COLORS.text, textAlign: "right", fontFamily: "'IBM Plex Mono', monospace" }}>{r.nb_devices}</td>
+                  <td style={{ padding: "8px 6px", color: COLORS.text, textAlign: "right", fontFamily: "'IBM Plex Mono', monospace" }}>{r.gemf}</td>
+                  <td style={{ padding: "8px 6px", color: COLORS.text, textAlign: "right", fontFamily: "'IBM Plex Mono', monospace" }}>{r.gemhf}</td>
+                  <td style={{ padding: "8px 6px", color: COLORS.text, textAlign: "right", fontFamily: "'IBM Plex Mono', monospace", fontWeight: 700 }}>{r.total}</td>
                 </tr>
               ))}
             </tbody>
