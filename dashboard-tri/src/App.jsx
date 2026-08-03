@@ -121,7 +121,16 @@ function ComingSoonScreen({ profil, onLock }) {
   );
 }
 
-const TARGET_MONTHS = ["2026-06-01", "2026-07-01", "2026-08-01"];
+function getRollingMonths(n) {
+  const now = new Date();
+  const months = [];
+  for (let i = n - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`);
+  }
+  return months;
+}
+const TARGET_MONTHS = getRollingMonths(3);
 
 function matchSupplierBucket(name) {
   const n = (name || "").toLowerCase();
@@ -167,11 +176,16 @@ function Dashboard({ data, onRefresh, onLock }) {
   const { par_type = [], totaux = {}, tendance_fournisseur = [] } = data || {};
   const poidsTotalTonnes = totaux.poids_total_kg != null ? Math.round((totaux.poids_total_kg / 1000) * 100) / 100 : "—";
   const tendanceFournisseurData = pivotTendanceFournisseur(tendance_fournisseur);
+  const pieTotal = (totaux.total_conformes ?? 0) + (totaux.total_non_conformes ?? 0) + (totaux.total_non_eligible ?? 0);
   const pieData = [
     { name: "Conformes", value: totaux.total_conformes ?? 0, color: COLORS.teal },
     { name: "Non conformes", value: totaux.total_non_conformes ?? 0, color: COLORS.red },
-    { name: "En attente", value: totaux.total_en_attente ?? 0, color: COLORS.slate },
+    { name: "Non éligible au tri", value: totaux.total_non_eligible ?? 0, color: COLORS.slate },
   ];
+  const pieTooltipFormatter = (value, name) => {
+    const pct = pieTotal > 0 ? Math.round((value / pieTotal) * 1000) / 10 : 0;
+    return [`${value} (${pct}%)`, name];
+  };
 
   return (
     <div style={{ minHeight: "100%", background: COLORS.bg, fontFamily: "'IBM Plex Sans', sans-serif", padding: 28 }}>
@@ -197,19 +211,21 @@ function Dashboard({ data, onRefresh, onLock }) {
         <KpiCard label="Appareils traités" value={totaux.total_devices ?? "—"} accent={COLORS.teal} />
         <KpiCard label="Conformes" value={totaux.total_conformes ?? "—"} accent={COLORS.teal} />
         <KpiCard label="Non conformes" value={totaux.total_non_conformes ?? "—"} accent={COLORS.red} />
-        <KpiCard label="En attente" value={totaux.total_en_attente ?? "—"} accent={COLORS.slate} />
+        <KpiCard label="Non éligible au tri" value={totaux.total_non_eligible ?? "—"} accent={COLORS.slate} />
         <KpiCard label="Poids total" value={poidsTotalTonnes} unit="t" accent={COLORS.amber} />
       </div>
 
       <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 14 }}>
-        <Panel title="Répartition par type d'appareil">
+        <Panel title="Répartition par catégorie">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={par_type} margin={{ left: -10, right: 10 }}>
               <CartesianGrid stroke={COLORS.panelBorder} vertical={false} />
-              <XAxis dataKey="device_type" tick={{ fill: COLORS.muted, fontSize: 11 }} interval={0} angle={-25} textAnchor="end" height={70} />
+              <XAxis dataKey="categorie" tick={{ fill: COLORS.muted, fontSize: 11 }} interval={0} angle={-25} textAnchor="end" height={70} />
               <YAxis tick={{ fill: COLORS.muted, fontSize: 11 }} />
               <Tooltip contentStyle={{ background: COLORS.panel, border: `1px solid ${COLORS.panelBorder}`, borderRadius: 4 }} labelStyle={{ color: COLORS.text }} />
-              <Bar dataKey="nb_devices" name="Appareils" fill={COLORS.teal} radius={[3, 3, 0, 0]} />
+              <Legend wrapperStyle={{ fontSize: 12, color: COLORS.muted }} />
+              <Bar dataKey="nb_conformes" name="Conformes" fill={COLORS.teal} radius={[3, 3, 0, 0]} />
+              <Bar dataKey="nb_non_conformes" name="Non conformes" fill={COLORS.red} radius={[3, 3, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </Panel>
@@ -220,7 +236,7 @@ function Dashboard({ data, onRefresh, onLock }) {
               <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={55} outerRadius={85} paddingAngle={2}>
                 {pieData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
               </Pie>
-              <Tooltip contentStyle={{ background: COLORS.panel, border: `1px solid ${COLORS.panelBorder}`, borderRadius: 4 }} />
+              <Tooltip contentStyle={{ background: COLORS.panel, border: `1px solid ${COLORS.panelBorder}`, borderRadius: 4 }} formatter={pieTooltipFormatter} />
               <Legend wrapperStyle={{ fontSize: 12, color: COLORS.muted }} />
             </PieChart>
           </ResponsiveContainer>
@@ -291,7 +307,7 @@ function FacturationDashboard({ data }) {
   );
 }
 
-function AdminDashboard({ data, onRefresh, onLock }) {
+function AdminDashboard({ token, data, onRefresh, onLock }) {
   const [tab, setTab] = useState("centre_tri");
   const tabs = [
     { key: "centre_tri", label: "Centre de tri" },
@@ -345,7 +361,7 @@ export default function App() {
 
   if (!token) return <TokenScreen onUnlock={handleUnlock} />;
   if (data?.profil === "admin") {
-    return <AdminDashboard data={data} onRefresh={handleRefresh} onLock={handleLock} />;
+    return <AdminDashboard token={token} data={data} onRefresh={handleRefresh} onLock={handleLock} />;
   }
   if (data?.profil === "centre_tri") {
     return <Dashboard data={data} onRefresh={handleRefresh} onLock={handleLock} />;
