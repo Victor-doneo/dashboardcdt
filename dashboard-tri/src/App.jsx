@@ -163,27 +163,62 @@ function pivotTendanceFournisseur(rows) {
   return [...byMonth.values()].sort((a, b) => a.mois.localeCompare(b.mois));
 }
 
-function pivotLotsByCateg(lots) {
+function pivotLotsByCateg(lots, palettes) {
   const byLot = new Map();
   for (const r of lots || []) {
     const key = `${r.client_name || ""}|${r.sale_lot_name || ""}`;
     if (!byLot.has(key)) {
-      byLot.set(key, { client_name: r.client_name, sale_lot_name: r.sale_lot_name, gemf: 0, gemhf: 0 });
+      byLot.set(key, { client_name: r.client_name, sale_lot_name: r.sale_lot_name, gemf: 0, gemhf: 0, nb_palettes: 0 });
     }
     const row = byLot.get(key);
     const categ = (r.categ_code || "").toUpperCase();
     if (categ === "GEMF") row.gemf += r.nb_devices || 0;
     else if (categ === "GEMHF") row.gemhf += r.nb_devices || 0;
   }
+  for (const p of palettes || []) {
+    const key = `${p.client_name || ""}|${p.sale_lot_name || ""}`;
+    if (byLot.has(key)) byLot.get(key).nb_palettes = p.nb_palettes || 0;
+  }
   return [...byLot.values()]
     .map((r) => ({ ...r, total: r.gemf + r.gemhf }))
     .sort((a, b) => (a.client_name || "").localeCompare(b.client_name || "") || (a.sale_lot_name || "").localeCompare(b.sale_lot_name || ""));
 }
 
-function OSVDashboard({ data, onLock }) {
+async function saveLotPalettes(token, clientName, saleLotName, nbPalettes) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/set_osv_lot_palettes`, {
+    method: "POST",
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ p_token: token, p_client_name: clientName, p_sale_lot_name: saleLotName, p_nb_palettes: nbPalettes }),
+  });
+  if (!res.ok) throw new Error((await res.json()).message || "Échec de l'enregistrement");
+}
+
+function OSVDashboard({ data, onLock, token }) {
   const rows = data?.osv_par_type || [];
-  const lots = pivotLotsByCateg(data?.osv_lots);
+  const lots = pivotLotsByCateg(data?.osv_lots, data?.osv_lot_palettes);
   const total = rows.reduce((acc, r) => acc + (r.nb_devices || 0), 0);
+  const isAdmin = data?.profil === "admin";
+  const [pending, setPending] = useState({});
+  const [saving, setSaving] = useState(null);
+  const [error, setError] = useState("");
+
+  const handleSavePalette = async (row) => {
+    const lotKey = `${row.client_name || ""}|${row.sale_lot_name || ""}`;
+    const value = pending[lotKey] !== undefined ? pending[lotKey] : row.nb_palettes;
+    setSaving(lotKey);
+    setError("");
+    try {
+      await saveLotPalettes(token, row.client_name, row.sale_lot_name, Number(value) || 0);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(null);
+    }
+  };
 
   return (
     <div style={{ minHeight: "100%", background: COLORS.bg, fontFamily: "'IBM Plex Sans', sans-serif", padding: 28 }}>
@@ -241,20 +276,51 @@ function OSVDashboard({ data, onLock }) {
                 <th style={{ textAlign: "right", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>GEMF</th>
                 <th style={{ textAlign: "right", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>GEMHF</th>
                 <th style={{ textAlign: "right", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Total</th>
+                <th style={{ textAlign: "right", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Palettes</th>
               </tr>
             </thead>
             <tbody>
-              {lots.map((r, i) => (
-                <tr key={i} style={{ borderBottom: `1px solid ${COLORS.panelBorder}` }}>
-                  <td style={{ padding: "8px 6px", color: COLORS.text }}>{r.client_name ?? "—"}</td>
-                  <td style={{ padding: "8px 6px", color: COLORS.text }}>{r.sale_lot_name ?? "—"}</td>
-                  <td style={{ padding: "8px 6px", color: COLORS.text, textAlign: "right", fontFamily: "'IBM Plex Mono', monospace" }}>{r.gemf}</td>
-                  <td style={{ padding: "8px 6px", color: COLORS.text, textAlign: "right", fontFamily: "'IBM Plex Mono', monospace" }}>{r.gemhf}</td>
-                  <td style={{ padding: "8px 6px", color: COLORS.text, textAlign: "right", fontFamily: "'IBM Plex Mono', monospace", fontWeight: 700 }}>{r.total}</td>
-                </tr>
-              ))}
+              {lots.map((r, i) => {
+                const lotKey = `${r.client_name || ""}|${r.sale_lot_name || ""}`;
+                return (
+                  <tr key={i} style={{ borderBottom: `1px solid ${COLORS.panelBorder}` }}>
+                    <td style={{ padding: "8px 6px", color: COLORS.text }}>{r.client_name ?? "—"}</td>
+                    <td style={{ padding: "8px 6px", color: COLORS.text }}>{r.sale_lot_name ?? "—"}</td>
+                    <td style={{ padding: "8px 6px", color: COLORS.text, textAlign: "right", fontFamily: "'IBM Plex Mono', monospace" }}>{r.gemf}</td>
+                    <td style={{ padding: "8px 6px", color: COLORS.text, textAlign: "right", fontFamily: "'IBM Plex Mono', monospace" }}>{r.gemhf}</td>
+                    <td style={{ padding: "8px 6px", color: COLORS.text, textAlign: "right", fontFamily: "'IBM Plex Mono', monospace", fontWeight: 700 }}>{r.total}</td>
+                    <td style={{ padding: "8px 6px", textAlign: "right" }}>
+                      {isAdmin ? (
+                        <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                          <input
+                            type="number"
+                            min="0"
+                            defaultValue={r.nb_palettes}
+                            onChange={(e) => setPending((p) => ({ ...p, [lotKey]: e.target.value }))}
+                            style={{ width: 64, boxSizing: "border-box", padding: "4px 6px", background: "#1B2124", border: `1px solid ${COLORS.panelBorder}`, borderRadius: 3, color: COLORS.text, fontSize: 13, fontFamily: "'IBM Plex Mono', monospace", outline: "none", textAlign: "right" }}
+                          />
+                          <button
+                            onClick={() => handleSavePalette(r)}
+                            disabled={saving === lotKey}
+                            style={{ background: COLORS.teal, color: "#0F1517", border: "none", borderRadius: 3, padding: "0 10px", cursor: "pointer", fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 12, opacity: saving === lotKey ? 0.6 : 1 }}
+                          >
+                            {saving === lotKey ? "..." : "OK"}
+                          </button>
+                        </div>
+                      ) : (
+                        <span style={{ color: COLORS.text, fontFamily: "'IBM Plex Mono', monospace" }}>{r.nb_palettes}</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
+          {error && (
+            <div style={{ background: "rgba(201,112,100,0.1)", border: `1px solid ${COLORS.red}`, color: COLORS.red, padding: "10px 14px", borderRadius: 4, marginTop: 12, fontSize: 13, fontFamily: "'IBM Plex Mono', monospace" }}>
+              {error}
+            </div>
+          )}
         </div>
       </Panel>
     </div>
@@ -442,7 +508,7 @@ function AdminDashboard({ token, data, onRefresh, onLock }) {
       </div>
       {tab === "centre_tri" && <Dashboard data={data} onRefresh={onRefresh} onLock={onLock} />}
       {tab === "facturation" && <FacturationDashboard data={data} />}
-      {tab === "seconde_vie" && <OSVDashboard data={data} />}
+      {tab === "seconde_vie" && <OSVDashboard data={data} token={token} />}
       {tab === "data_quality" && <ComingSoonScreen profil={tab} onLock={onLock} />}
     </div>
   );
