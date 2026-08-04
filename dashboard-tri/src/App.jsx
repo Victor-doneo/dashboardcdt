@@ -504,7 +504,10 @@ function DataQualityKpi({ data }) {
         <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 26, color: COLORS.text, margin: 0 }}>Qualité des données de pesée</h1>
       </div>
 
-      <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
+      <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, letterSpacing: 2, color: COLORS.teal, textTransform: "uppercase", marginBottom: 10 }}>
+        Cohérence de poids
+      </div>
+      <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 28 }}>
         <KpiCard
           label="Écart moyen (pesée réelle − référence)"
           value={dq?.ecart_moyen_kg ?? "—"}
@@ -512,12 +515,31 @@ function DataQualityKpi({ data }) {
           accent={COLORS.amber}
         />
         <KpiCard
+          label="Écart moyen (% du poids)"
+          value={dq?.ecart_moyen_pct ?? "—"}
+          unit="%"
+          accent={COLORS.orange}
+        />
+        <KpiCard
           label="Écart type"
           value={dq?.ecart_type_kg ?? "—"}
           unit="kg"
           accent={COLORS.blue}
         />
-        <KpiCard label="Lignes comparées" value={dq?.nb_lignes ?? "—"} accent={COLORS.slate} />
+        <KpiCard label="Lignes comparées" value={dq?.nb_lignes_poids ?? "—"} accent={COLORS.slate} />
+      </div>
+
+      <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, letterSpacing: 2, color: COLORS.teal, textTransform: "uppercase", marginBottom: 10 }}>
+        Cohérence de données
+      </div>
+      <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
+        <KpiCard
+          label="% de lignes avec serial_number vide"
+          value={dq?.pct_serial_vide ?? "—"}
+          unit="%"
+          accent={COLORS.red}
+        />
+        <KpiCard label="Lignes totales" value={dq?.nb_lignes_total ?? "—"} accent={COLORS.slate} />
       </div>
     </div>
   );
