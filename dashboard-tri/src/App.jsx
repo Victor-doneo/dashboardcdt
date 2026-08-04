@@ -159,8 +159,8 @@ function pivotTendanceFournisseur(rows) {
   for (const m of TARGET_MONTHS) {
     byMonth.set(m, {
       mois: m,
-      darty_conforme: 0, darty_non_conforme: 0, darty_taux: null,
-      revolog_conforme: 0, revolog_non_conforme: 0, revolog_taux: null,
+      darty_conforme: 0, darty_non_conforme: 0, darty_non_eligible: 0, darty_taux: null,
+      revolog_conforme: 0, revolog_non_conforme: 0, revolog_non_eligible: 0, revolog_taux: null,
     });
   }
   for (const r of rows || []) {
@@ -169,10 +169,12 @@ function pivotTendanceFournisseur(rows) {
     const row = byMonth.get(r.mois);
     const poidsConformeT = (r.poids_conforme_kg || 0) / 1000;
     const poidsNonConformeT = (r.poids_non_conforme_kg || 0) / 1000;
+    const poidsNonEligibleT = (r.poids_non_eligible_kg || 0) / 1000;
     const total = r.nb_devices || 0;
     const taux = total > 0 ? Math.round(((r.nb_conformes || 0) / total) * 100) : null;
     row[`${bucket}_conforme`] = Math.round(poidsConformeT * 100) / 100;
     row[`${bucket}_non_conforme`] = Math.round(poidsNonConformeT * 100) / 100;
+    row[`${bucket}_non_eligible`] = Math.round(poidsNonEligibleT * 100) / 100;
     row[`${bucket}_taux`] = taux;
   }
   return [...byMonth.values()].sort((a, b) => a.mois.localeCompare(b.mois));
@@ -484,11 +486,13 @@ function Dashboard({ data, onRefresh, onLock }) {
               <Tooltip contentStyle={{ background: COLORS.panel, border: `1px solid ${COLORS.panelBorder}`, borderRadius: 4 }} labelStyle={{ color: COLORS.text }} />
               <Legend wrapperStyle={{ fontSize: 12, color: COLORS.muted }} />
               <Bar dataKey="darty_conforme" name="Darty — conforme" stackId="darty" fill={COLORS.teal} />
-              <Bar dataKey="darty_non_conforme" name="Darty — non conforme" stackId="darty" fill={COLORS.red}>
+              <Bar dataKey="darty_non_conforme" name="Darty — non conforme" stackId="darty" fill={COLORS.red} />
+              <Bar dataKey="darty_non_eligible" name="Darty — non éligible au tri" stackId="darty" fill={COLORS.slate}>
                 <LabelList dataKey="darty_taux" content={TauxLabel} />
               </Bar>
               <Bar dataKey="revolog_conforme" name="Revolog — conforme" stackId="revolog" fill={COLORS.blue} />
-              <Bar dataKey="revolog_non_conforme" name="Revolog — non conforme" stackId="revolog" fill={COLORS.orange}>
+              <Bar dataKey="revolog_non_conforme" name="Revolog — non conforme" stackId="revolog" fill={COLORS.orange} />
+              <Bar dataKey="revolog_non_eligible" name="Revolog — non éligible au tri" stackId="revolog" fill={COLORS.slate}>
                 <LabelList dataKey="revolog_taux" content={TauxLabel} />
               </Bar>
             </BarChart>
