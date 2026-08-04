@@ -183,19 +183,20 @@ function pivotLotsByCateg(lots, palettes) {
   for (const r of lots || []) {
     const key = `${r.client_name || ""}|${r.sale_lot_name || ""}`;
     if (!byLot.has(key)) {
-      byLot.set(key, { client_name: r.client_name, sale_lot_name: r.sale_lot_name, gemf: 0, gemhf: 0, nb_palettes: 0 });
+      byLot.set(key, { client_name: r.client_name, sale_lot_name: r.sale_lot_name, gemf: 0, gemhf: 0, nb_palettes: 0, poids_kg: 0 });
     }
     const row = byLot.get(key);
     const categ = (r.categ_code || "").toUpperCase();
     if (categ === "GEMF") row.gemf += r.nb_devices || 0;
     else if (categ === "GEMHF") row.gemhf += r.nb_devices || 0;
+    row.poids_kg += r.poids_kg || 0;
   }
   for (const p of palettes || []) {
     const key = `${p.client_name || ""}|${p.sale_lot_name || ""}`;
     if (byLot.has(key)) byLot.get(key).nb_palettes = p.nb_palettes || 0;
   }
   return [...byLot.values()]
-    .map((r) => ({ ...r, total: r.gemf + r.gemhf }))
+    .map((r) => ({ ...r, total: r.gemf + r.gemhf, poids_kg: Math.round(r.poids_kg * 100) / 100 }))
     .sort((a, b) => (a.client_name || "").localeCompare(b.client_name || "") || (a.sale_lot_name || "").localeCompare(b.sale_lot_name || ""));
 }
 
@@ -217,9 +218,12 @@ function OSVDashboard({ data, onLock, token }) {
   const lots = pivotLotsByCateg(data?.osv_lots, data?.osv_lot_palettes);
   const clientTotals = [...lots.reduce((map, r) => {
     const key = r.client_name || "—";
-    map.set(key, (map.get(key) || 0) + r.total);
+    const cur = map.get(key) || { total: 0, poids_kg: 0 };
+    map.set(key, { total: cur.total + r.total, poids_kg: cur.poids_kg + r.poids_kg });
     return map;
-  }, new Map())].map(([client_name, total]) => ({ client_name, total })).sort((a, b) => b.total - a.total);
+  }, new Map())]
+    .map(([client_name, v]) => ({ client_name, total: v.total, poids_kg: Math.round(v.poids_kg * 100) / 100 }))
+    .sort((a, b) => b.total - a.total);
   const total = rows.reduce((acc, r) => acc + (r.nb_devices || 0), 0);
   const isAdmin = data?.editable === true;
   const [pending, setPending] = useState({});
@@ -297,6 +301,7 @@ function OSVDashboard({ data, onLock, token }) {
               <tr style={{ borderBottom: `1px solid ${COLORS.panelBorder}` }}>
                 <th style={{ textAlign: "left", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Client</th>
                 <th style={{ textAlign: "right", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Total appareils</th>
+                <th style={{ textAlign: "right", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Poids (kg)</th>
               </tr>
             </thead>
             <tbody>
@@ -304,6 +309,7 @@ function OSVDashboard({ data, onLock, token }) {
                 <tr key={i} style={{ borderBottom: `1px solid ${COLORS.panelBorder}` }}>
                   <td style={{ padding: "8px 6px", color: COLORS.text }}>{r.client_name}</td>
                   <td style={{ padding: "8px 6px", color: COLORS.text, textAlign: "right", fontFamily: "'IBM Plex Mono', monospace", fontWeight: 700 }}>{r.total}</td>
+                  <td style={{ padding: "8px 6px", color: COLORS.text, textAlign: "right", fontFamily: "'IBM Plex Mono', monospace" }}>{r.poids_kg}</td>
                 </tr>
               ))}
             </tbody>
