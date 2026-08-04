@@ -71,9 +71,9 @@ function TokenScreen({ onUnlock }) {
   );
 }
 
-function KpiCard({ label, value, unit, accent }) {
+function KpiCard({ label, value, unit, accent, tooltip }) {
   return (
-    <div style={{ background: COLORS.panel, border: `1px solid ${COLORS.panelBorder}`, borderRadius: 4, padding: "18px 20px", flex: 1, minWidth: 140, position: "relative", overflow: "hidden" }}>
+    <div title={tooltip} style={{ background: COLORS.panel, border: `1px solid ${COLORS.panelBorder}`, borderRadius: 4, padding: "18px 20px", flex: 1, minWidth: 140, position: "relative", overflow: "hidden", cursor: tooltip ? "help" : "default" }}>
       <div style={{ position: "absolute", top: 0, left: 0, width: 3, height: "100%", background: accent }} />
       <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, letterSpacing: 1.5, color: COLORS.muted, textTransform: "uppercase", marginBottom: 10 }}>{label}</div>
       <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
@@ -544,18 +544,21 @@ function DataQualityKpi({ data }) {
           value={dq?.pct_non_respect_cdc ?? "—"}
           unit="%"
           accent={COLORS.red}
+          tooltip="Nombre d'appareils conformes bien que non éligibles au tri (âge) / nombre d'appareils total"
         />
         <KpiCard
           label="Référence JDME incohérente"
           value={dq?.pct_ref_jdme_incoherente ?? "—"}
           unit="%"
           accent={COLORS.orange}
+          tooltip="Nombre d'appareils avec une référence JDME ne respectant pas les REGEX / nombre d'appareils total"
         />
         <KpiCard
           label="À régulariser"
           value={dq?.pct_a_regulariser ?? "—"}
           unit="%"
           accent={COLORS.amber}
+          tooltip="Nombre d'appareils créés depuis plus de 7 jours qui ne sont pas validés en sortie / nombre d'appareils total"
         />
         <KpiCard label="Lignes totales" value={dq?.nb_lignes_total ?? "—"} accent={COLORS.slate} />
       </div>
