@@ -539,6 +539,24 @@ function DataQualityKpi({ data }) {
           unit="%"
           accent={COLORS.red}
         />
+        <KpiCard
+          label="Non-respect du cahier des charges"
+          value={dq?.pct_non_respect_cdc ?? "—"}
+          unit="%"
+          accent={COLORS.red}
+        />
+        <KpiCard
+          label="Référence JDME incohérente"
+          value={dq?.pct_ref_jdme_incoherente ?? "—"}
+          unit="%"
+          accent={COLORS.orange}
+        />
+        <KpiCard
+          label="À régulariser"
+          value={dq?.pct_a_regulariser ?? "—"}
+          unit="%"
+          accent={COLORS.amber}
+        />
         <KpiCard label="Lignes totales" value={dq?.nb_lignes_total ?? "—"} accent={COLORS.slate} />
       </div>
     </div>
