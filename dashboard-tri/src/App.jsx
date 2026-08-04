@@ -281,6 +281,10 @@ function OSVDashboard({ data, onLock, token }) {
         </div>
       </Panel>
 
+      <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 26, color: COLORS.text, margin: "28px 0 16px 0" }}>
+        Flux transmis aux opérateurs de seconde vie
+      </h1>
+
       <Panel title="Lots par client" height={lots.length * 40 + 60}>
         <div style={{ height: "100%", overflowY: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
@@ -558,6 +562,10 @@ function DataQualityKpi({ data }) {
         />
         <KpiCard label="Lignes comparées" value={dq?.nb_lignes_poids ?? "—"} accent={COLORS.slate} />
       </div>
+
+      <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 26, color: COLORS.text, margin: "0 0 16px 0" }}>
+        Qualité des données de tri
+      </h1>
 
       <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, letterSpacing: 2, color: COLORS.teal, textTransform: "uppercase", marginBottom: 10 }}>
         Cohérence de données
