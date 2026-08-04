@@ -366,6 +366,21 @@ function Dashboard({ data, onRefresh, onLock }) {
     const pct = pieTotal > 0 ? Math.round((value / pieTotal) * 1000) / 10 : 0;
     return [`${value} (${pct}%)`, name];
   };
+  const PieTooltipContent = ({ active, payload }) => {
+    if (!active || !payload || !payload.length) return null;
+    return (
+      <div style={{ background: COLORS.panel, border: `1px solid ${COLORS.panelBorder}`, borderRadius: 4, padding: "10px 12px" }}>
+        {payload.map((entry, i) => {
+          const pct = pieTotal > 0 ? Math.round((entry.value / pieTotal) * 1000) / 10 : 0;
+          return (
+            <div key={i} style={{ color: entry.payload.color, fontSize: 13, fontFamily: "'IBM Plex Mono', monospace" }}>
+              {entry.name} : {entry.value} ({pct}%)
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
 
   return (
     <div style={{ minHeight: "100%", background: COLORS.bg, fontFamily: "'IBM Plex Sans', sans-serif", padding: 28 }}>
@@ -416,7 +431,7 @@ function Dashboard({ data, onRefresh, onLock }) {
               <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={55} outerRadius={85} paddingAngle={2}>
                 {pieData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
               </Pie>
-              <Tooltip contentStyle={{ background: COLORS.panel, border: `1px solid ${COLORS.panelBorder}`, borderRadius: 4 }} formatter={pieTooltipFormatter} />
+              <Tooltip content={<PieTooltipContent />} />
               <Legend wrapperStyle={{ fontSize: 12, color: COLORS.muted }} />
             </PieChart>
           </ResponsiveContainer>
