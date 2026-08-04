@@ -513,14 +513,15 @@ function pivotFacturation(rows) {
 function pivotFacturationFournisseur(rows) {
   const byMonth = new Map();
   for (const m of TARGET_MONTHS) {
-    byMonth.set(m, { mois: m, darty: 0, revolog: 0 });
+    byMonth.set(m, { mois: m, darty_tonnage: 0, darty_eligible: 0, revolog_tonnage: 0, revolog_eligible: 0 });
   }
   for (const r of rows || []) {
     if (!byMonth.has(r.mois)) continue;
     const bucket = matchSupplierBucket(r.supplier_name);
     if (!bucket) continue;
-    const montant = (r.tonnes || 0) * 98 + (r.nb_eligible_tri || 0) * 2;
-    byMonth.get(r.mois)[bucket] += montant;
+    const row = byMonth.get(r.mois);
+    row[`${bucket}_tonnage`] += (r.tonnes || 0) * 98;
+    row[`${bucket}_eligible`] += (r.nb_eligible_tri || 0) * 2;
   }
   return [...byMonth.values()].sort((a, b) => a.mois.localeCompare(b.mois));
 }
@@ -538,12 +539,15 @@ function FacturationDashboard({ data }) {
   const fournisseurRows = pivotFacturationFournisseur(data?.facturation_fournisseur).map((r) => {
     const palettesRow = rows.find((x) => x.mois === r.mois);
     const palettes = palettesRow ? palettesRow.montant_palettes : 0;
+    const round2 = (n) => Math.round(n * 100) / 100;
     return {
       mois: r.mois,
-      darty: Math.round(r.darty * 100) / 100,
-      revolog: Math.round(r.revolog * 100) / 100,
+      darty_tonnage: round2(r.darty_tonnage),
+      darty_eligible: round2(r.darty_eligible),
+      revolog_tonnage: round2(r.revolog_tonnage),
+      revolog_eligible: round2(r.revolog_eligible),
       palettes,
-      total: Math.round((r.darty + r.revolog + palettes) * 100) / 100,
+      total: round2(r.darty_tonnage + r.darty_eligible + r.revolog_tonnage + r.revolog_eligible + palettes),
     };
   });
 
@@ -576,13 +580,22 @@ function FacturationDashboard({ data }) {
         </ResponsiveContainer>
       </Panel>
 
-      <Panel title="Détail par fournisseur (3 derniers mois)" height={rows.length * 44 + 90}>
+      <Panel title="Détail par fournisseur (3 derniers mois)" height={rows.length * 44 + 100}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
           <thead>
+            <tr>
+              <th></th>
+              <th colSpan={2} style={{ textAlign: "center", padding: "6px", color: COLORS.teal, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase", borderBottom: `1px solid ${COLORS.panelBorder}` }}>Darty</th>
+              <th colSpan={2} style={{ textAlign: "center", padding: "6px", color: COLORS.blue, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase", borderBottom: `1px solid ${COLORS.panelBorder}` }}>Revolog</th>
+              <th></th>
+              <th></th>
+            </tr>
             <tr style={{ borderBottom: `1px solid ${COLORS.panelBorder}` }}>
               <th style={{ textAlign: "left", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Mois</th>
-              <th style={{ textAlign: "right", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Darty (€)</th>
-              <th style={{ textAlign: "right", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Revolog (€)</th>
+              <th style={{ textAlign: "right", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Tonnage (€)</th>
+              <th style={{ textAlign: "right", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Éligibles (€)</th>
+              <th style={{ textAlign: "right", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Tonnage (€)</th>
+              <th style={{ textAlign: "right", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Éligibles (€)</th>
               <th style={{ textAlign: "right", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Palettes (€)</th>
               <th style={{ textAlign: "right", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Total (€)</th>
             </tr>
@@ -593,8 +606,10 @@ function FacturationDashboard({ data }) {
                 <td style={{ padding: "8px 6px", color: COLORS.text, fontFamily: "'IBM Plex Mono', monospace" }}>
                   {new Date(r.mois).toLocaleDateString("fr-FR", { month: "long", year: "numeric" })}
                 </td>
-                <td style={{ padding: "8px 6px", color: COLORS.text, textAlign: "right", fontFamily: "'IBM Plex Mono', monospace" }}>{r.darty}</td>
-                <td style={{ padding: "8px 6px", color: COLORS.text, textAlign: "right", fontFamily: "'IBM Plex Mono', monospace" }}>{r.revolog}</td>
+                <td style={{ padding: "8px 6px", color: COLORS.text, textAlign: "right", fontFamily: "'IBM Plex Mono', monospace" }}>{r.darty_tonnage}</td>
+                <td style={{ padding: "8px 6px", color: COLORS.text, textAlign: "right", fontFamily: "'IBM Plex Mono', monospace" }}>{r.darty_eligible}</td>
+                <td style={{ padding: "8px 6px", color: COLORS.text, textAlign: "right", fontFamily: "'IBM Plex Mono', monospace" }}>{r.revolog_tonnage}</td>
+                <td style={{ padding: "8px 6px", color: COLORS.text, textAlign: "right", fontFamily: "'IBM Plex Mono', monospace" }}>{r.revolog_eligible}</td>
                 <td style={{ padding: "8px 6px", color: COLORS.text, textAlign: "right", fontFamily: "'IBM Plex Mono', monospace" }}>{r.palettes}</td>
                 <td style={{ padding: "8px 6px", color: COLORS.text, textAlign: "right", fontFamily: "'IBM Plex Mono', monospace", fontWeight: 700 }}>{r.total}</td>
               </tr>
