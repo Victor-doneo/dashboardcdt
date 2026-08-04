@@ -72,14 +72,29 @@ function TokenScreen({ onUnlock }) {
 }
 
 function KpiCard({ label, value, unit, accent, tooltip }) {
+  const [hover, setHover] = useState(false);
   return (
-    <div title={tooltip} style={{ background: COLORS.panel, border: `1px solid ${COLORS.panelBorder}`, borderRadius: 4, padding: "18px 20px", flex: 1, minWidth: 140, position: "relative", overflow: "hidden", cursor: tooltip ? "help" : "default" }}>
-      <div style={{ position: "absolute", top: 0, left: 0, width: 3, height: "100%", background: accent }} />
+    <div
+      onMouseEnter={() => tooltip && setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{ background: COLORS.panel, border: `1px solid ${COLORS.panelBorder}`, borderRadius: 4, padding: "18px 20px", flex: 1, minWidth: 140, position: "relative", overflow: "visible", cursor: tooltip ? "help" : "default" }}
+    >
+      <div style={{ position: "absolute", top: 0, left: 0, width: 3, height: "100%", background: accent, borderRadius: "4px 0 0 4px" }} />
       <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, letterSpacing: 1.5, color: COLORS.muted, textTransform: "uppercase", marginBottom: 10 }}>{label}</div>
       <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
         <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 28, color: COLORS.text }}>{value}</span>
         {unit && <span style={{ fontSize: 13, color: COLORS.muted }}>{unit}</span>}
       </div>
+      {tooltip && hover && (
+        <div style={{
+          position: "absolute", bottom: "calc(100% + 8px)", left: 0, zIndex: 20,
+          background: "#0F1517", border: `1px solid ${COLORS.panelBorder}`, borderRadius: 4,
+          padding: "10px 12px", fontSize: 12, color: COLORS.text, lineHeight: 1.4,
+          width: 260, boxShadow: "0 8px 24px rgba(0,0,0,0.5)", fontFamily: "'IBM Plex Sans', sans-serif",
+        }}>
+          {tooltip}
+        </div>
+      )}
     </div>
   );
 }
