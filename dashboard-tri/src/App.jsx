@@ -502,8 +502,9 @@ async function callAdminRpc(path, token, extraBody) {
     },
     body: JSON.stringify({ p_admin_token: token, ...extraBody }),
   });
-  const json = await res.json();
-  if (!res.ok) throw new Error(json.message || "Échec de la requête");
+  const text = await res.text();
+  const json = text ? JSON.parse(text) : null;
+  if (!res.ok) throw new Error((json && json.message) || "Échec de la requête");
   return json;
 }
 
