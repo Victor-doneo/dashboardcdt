@@ -492,6 +492,37 @@ function FacturationDashboard({ data }) {
   );
 }
 
+function DataQualityKpi({ data }) {
+  const dq = data?.data_quality;
+  return (
+    <div style={{ minHeight: "100%", background: COLORS.bg, fontFamily: "'IBM Plex Sans', sans-serif", padding: 28 }}>
+      <style>{FONT_IMPORT}</style>
+      <div style={{ marginBottom: 24 }}>
+        <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, letterSpacing: 2, color: COLORS.teal, textTransform: "uppercase", marginBottom: 6 }}>
+          Ligne de tri — data quality
+        </div>
+        <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 26, color: COLORS.text, margin: 0 }}>Qualité des données de pesée</h1>
+      </div>
+
+      <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
+        <KpiCard
+          label="Écart moyen (pesée réelle − référence)"
+          value={dq?.ecart_moyen_kg ?? "—"}
+          unit="kg"
+          accent={COLORS.amber}
+        />
+        <KpiCard
+          label="Écart type"
+          value={dq?.ecart_type_kg ?? "—"}
+          unit="kg"
+          accent={COLORS.blue}
+        />
+        <KpiCard label="Lignes comparées" value={dq?.nb_lignes ?? "—"} accent={COLORS.slate} />
+      </div>
+    </div>
+  );
+}
+
 const ALL_TABS = [
   { key: "centre_tri", label: "Centre de tri" },
   { key: "seconde_vie", label: "Opérateur de seconde vie" },
@@ -531,7 +562,7 @@ function TabbedDashboard({ token, data, onRefresh, onLock }) {
       {tab === "centre_tri" && <Dashboard data={data} onRefresh={onRefresh} onLock={onLock} />}
       {tab === "facturation" && <FacturationDashboard data={data} />}
       {tab === "seconde_vie" && <OSVDashboard data={data} token={token} />}
-      {tab === "data_quality" && <ComingSoonScreen profil={tab} onLock={onLock} />}
+      {tab === "data_quality" && <DataQualityKpi data={data} />}
     </div>
   );
 }
