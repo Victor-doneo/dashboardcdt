@@ -215,6 +215,11 @@ async function saveLotPalettes(token, clientName, saleLotName, nbPalettes) {
 function OSVDashboard({ data, onLock, token }) {
   const rows = data?.osv_par_type || [];
   const lots = pivotLotsByCateg(data?.osv_lots, data?.osv_lot_palettes);
+  const clientTotals = [...lots.reduce((map, r) => {
+    const key = r.client_name || "—";
+    map.set(key, (map.get(key) || 0) + r.total);
+    return map;
+  }, new Map())].map(([client_name, total]) => ({ client_name, total })).sort((a, b) => b.total - a.total);
   const total = rows.reduce((acc, r) => acc + (r.nb_devices || 0), 0);
   const isAdmin = data?.editable === true;
   const [pending, setPending] = useState({});
@@ -284,6 +289,27 @@ function OSVDashboard({ data, onLock, token }) {
       <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 26, color: COLORS.text, margin: "28px 0 16px 0" }}>
         Flux transmis aux opérateurs de seconde vie
       </h1>
+
+      <Panel title="Total appareils transmis par client" height={clientTotals.length * 40 + 60}>
+        <div style={{ height: "100%", overflowY: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <thead>
+              <tr style={{ borderBottom: `1px solid ${COLORS.panelBorder}` }}>
+                <th style={{ textAlign: "left", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Client</th>
+                <th style={{ textAlign: "right", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Total appareils</th>
+              </tr>
+            </thead>
+            <tbody>
+              {clientTotals.map((r, i) => (
+                <tr key={i} style={{ borderBottom: `1px solid ${COLORS.panelBorder}` }}>
+                  <td style={{ padding: "8px 6px", color: COLORS.text }}>{r.client_name}</td>
+                  <td style={{ padding: "8px 6px", color: COLORS.text, textAlign: "right", fontFamily: "'IBM Plex Mono', monospace", fontWeight: 700 }}>{r.total}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Panel>
 
       <Panel title="Lots par client" height={lots.length * 40 + 60}>
         <div style={{ height: "100%", overflowY: "auto" }}>
@@ -484,6 +510,21 @@ function pivotFacturation(rows) {
   return [...byMonth.values()].sort((a, b) => a.mois.localeCompare(b.mois));
 }
 
+function pivotFacturationFournisseur(rows) {
+  const byMonth = new Map();
+  for (const m of TARGET_MONTHS) {
+    byMonth.set(m, { mois: m, darty: 0, revolog: 0 });
+  }
+  for (const r of rows || []) {
+    if (!byMonth.has(r.mois)) continue;
+    const bucket = matchSupplierBucket(r.supplier_name);
+    if (!bucket) continue;
+    const montant = (r.tonnes || 0) * 98 + (r.nb_eligible_tri || 0) * 2;
+    byMonth.get(r.mois)[bucket] += montant;
+  }
+  return [...byMonth.values()].sort((a, b) => a.mois.localeCompare(b.mois));
+}
+
 function FacturationDashboard({ data }) {
   const months = pivotFacturation(data?.facturation);
   const rows = months.map((r) => ({
@@ -493,6 +534,18 @@ function FacturationDashboard({ data }) {
     montant_palettes: Math.round(r.nb_palettes * 8 * 100) / 100,
   }));
   const total = rows.reduce((acc, r) => acc + r.montant_tonnage + r.montant_eligible + r.montant_palettes, 0);
+
+  const fournisseurRows = pivotFacturationFournisseur(data?.facturation_fournisseur).map((r) => {
+    const palettesRow = rows.find((x) => x.mois === r.mois);
+    const palettes = palettesRow ? palettesRow.montant_palettes : 0;
+    return {
+      mois: r.mois,
+      darty: Math.round(r.darty * 100) / 100,
+      revolog: Math.round(r.revolog * 100) / 100,
+      palettes,
+      total: Math.round((r.darty + r.revolog + palettes) * 100) / 100,
+    };
+  });
 
   return (
     <div style={{ minHeight: "100%", background: COLORS.bg, fontFamily: "'IBM Plex Sans', sans-serif", padding: 28 }}>
@@ -521,6 +574,33 @@ function FacturationDashboard({ data }) {
             <Bar dataKey="montant_palettes" name="8 € × palettes" fill={COLORS.blue} radius={[3, 3, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
+      </Panel>
+
+      <Panel title="Détail par fournisseur (3 derniers mois)" height={rows.length * 44 + 90}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+          <thead>
+            <tr style={{ borderBottom: `1px solid ${COLORS.panelBorder}` }}>
+              <th style={{ textAlign: "left", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Mois</th>
+              <th style={{ textAlign: "right", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Darty (€)</th>
+              <th style={{ textAlign: "right", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Revolog (€)</th>
+              <th style={{ textAlign: "right", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Palettes (€)</th>
+              <th style={{ textAlign: "right", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Total (€)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {fournisseurRows.map((r, i) => (
+              <tr key={i} style={{ borderBottom: `1px solid ${COLORS.panelBorder}` }}>
+                <td style={{ padding: "8px 6px", color: COLORS.text, fontFamily: "'IBM Plex Mono', monospace" }}>
+                  {new Date(r.mois).toLocaleDateString("fr-FR", { month: "long", year: "numeric" })}
+                </td>
+                <td style={{ padding: "8px 6px", color: COLORS.text, textAlign: "right", fontFamily: "'IBM Plex Mono', monospace" }}>{r.darty}</td>
+                <td style={{ padding: "8px 6px", color: COLORS.text, textAlign: "right", fontFamily: "'IBM Plex Mono', monospace" }}>{r.revolog}</td>
+                <td style={{ padding: "8px 6px", color: COLORS.text, textAlign: "right", fontFamily: "'IBM Plex Mono', monospace" }}>{r.palettes}</td>
+                <td style={{ padding: "8px 6px", color: COLORS.text, textAlign: "right", fontFamily: "'IBM Plex Mono', monospace", fontWeight: 700 }}>{r.total}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </Panel>
     </div>
   );
