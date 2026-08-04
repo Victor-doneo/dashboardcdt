@@ -29,9 +29,9 @@ async function fetchDashboard(token) {
   return data;
 }
 
-function TokenScreen({ onUnlock, initialError }) {
+function TokenScreen({ onUnlock }) {
   const [token, setToken] = useState("");
-  const [error, setError] = useState(initialError || "");
+  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
   const submit = async (e) => {
@@ -492,157 +492,6 @@ function FacturationDashboard({ data }) {
   );
 }
 
-async function callAdminRpc(path, token, extraBody) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${path}`, {
-    method: "POST",
-    headers: {
-      apikey: SUPABASE_ANON_KEY,
-      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ p_admin_token: token, ...extraBody }),
-  });
-  const text = await res.text();
-  const json = text ? JSON.parse(text) : null;
-  if (!res.ok) throw new Error((json && json.message) || "Échec de la requête");
-  return json;
-}
-
-function AccessManagement({ token }) {
-  const [list, setList] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [email, setEmail] = useState("");
-  const [profil, setProfil] = useState("lecture");
-  const [sending, setSending] = useState(false);
-
-  const load = async () => {
-    setLoading(true);
-    setError("");
-    try {
-      const data = await callAdminRpc("list_dashboard_access", token);
-      setList(data || []);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => { load(); }, []);
-
-  const handleSend = async (e) => {
-    e.preventDefault();
-    setSending(true);
-    setError("");
-    try {
-      await callAdminRpc("grant_dashboard_access", token, { p_email: email, p_profil: profil });
-      setEmail("");
-      await load();
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setSending(false);
-    }
-  };
-
-  const handleRevoke = async (id) => {
-    setError("");
-    try {
-      await callAdminRpc("revoke_dashboard_access", token, { p_token_id: id });
-      await load();
-    } catch (err) {
-      setError(err.message);
-    }
-  };
-
-  return (
-    <div style={{ minHeight: "100%", background: COLORS.bg, fontFamily: "'IBM Plex Sans', sans-serif", padding: 28 }}>
-      <style>{FONT_IMPORT}</style>
-      <div style={{ marginBottom: 24 }}>
-        <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, letterSpacing: 2, color: COLORS.teal, textTransform: "uppercase", marginBottom: 6 }}>
-          Ligne de tri — admin
-        </div>
-        <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 26, color: COLORS.text, margin: 0 }}>Gestion des accès</h1>
-      </div>
-
-      {error && (
-        <div style={{ background: "rgba(201,112,100,0.1)", border: `1px solid ${COLORS.red}`, color: COLORS.red, padding: "12px 16px", borderRadius: 4, marginBottom: 20, fontSize: 13, fontFamily: "'IBM Plex Mono', monospace" }}>
-          {error}
-        </div>
-      )}
-
-      <div style={{ background: COLORS.panel, border: `1px solid ${COLORS.panelBorder}`, borderRadius: 4, padding: 20, marginBottom: 20 }}>
-        <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, letterSpacing: 1.5, color: COLORS.muted, textTransform: "uppercase", marginBottom: 14 }}>
-          Envoyer un nouveau lien d'accès
-        </div>
-        <form onSubmit={handleSend} style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
-          <div style={{ flex: 1, minWidth: 220 }}>
-            <label style={{ display: "block", fontSize: 12, color: COLORS.muted, marginBottom: 6 }}>Email</label>
-            <input
-              type="email" required value={email} onChange={(e) => setEmail(e.target.value)}
-              style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px", background: "#1B2124", border: `1px solid ${COLORS.panelBorder}`, borderRadius: 3, color: COLORS.text, fontSize: 14, fontFamily: "'IBM Plex Mono', monospace", outline: "none" }}
-            />
-          </div>
-          <div>
-            <label style={{ display: "block", fontSize: 12, color: COLORS.muted, marginBottom: 6 }}>Profil</label>
-            <select
-              value={profil} onChange={(e) => setProfil(e.target.value)}
-              style={{ padding: "9px 12px", background: "#1B2124", border: `1px solid ${COLORS.panelBorder}`, borderRadius: 3, color: COLORS.text, fontSize: 14, fontFamily: "'IBM Plex Mono', monospace", outline: "none" }}
-            >
-              <option value="lecture">Lecture (tous les onglets)</option>
-              <option value="admin">Admin (écriture)</option>
-              <option value="operationnel">Opérationnel (sans facturation)</option>
-            </select>
-          </div>
-          <button type="submit" disabled={sending} style={{ background: COLORS.teal, color: "#0F1517", border: "none", borderRadius: 3, padding: "9px 18px", cursor: "pointer", fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 13, opacity: sending ? 0.6 : 1 }}>
-            {sending ? "Envoi..." : "Envoyer le lien"}
-          </button>
-        </form>
-      </div>
-
-      <Panel title="Liens envoyés" height={Math.max(list.length * 44 + 60, 160)}>
-        <div style={{ height: "100%", overflowY: "auto" }}>
-          {loading ? (
-            <div style={{ color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontSize: 13 }}>Chargement...</div>
-          ) : (
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-              <thead>
-                <tr style={{ borderBottom: `1px solid ${COLORS.panelBorder}` }}>
-                  <th style={{ textAlign: "left", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Email</th>
-                  <th style={{ textAlign: "left", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Profil</th>
-                  <th style={{ textAlign: "left", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Statut</th>
-                  <th style={{ textAlign: "left", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Dernière utilisation</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {list.map((r) => (
-                  <tr key={r.id} style={{ borderBottom: `1px solid ${COLORS.panelBorder}` }}>
-                    <td style={{ padding: "8px 6px", color: COLORS.text }}>{r.email}</td>
-                    <td style={{ padding: "8px 6px", color: COLORS.text }}>{r.profil}</td>
-                    <td style={{ padding: "8px 6px", color: r.revoked ? COLORS.red : COLORS.teal }}>{r.revoked ? "Révoqué" : "Actif"}</td>
-                    <td style={{ padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace" }}>
-                      {r.last_used_at ? new Date(r.last_used_at).toLocaleString("fr-FR") : "Jamais"}
-                    </td>
-                    <td style={{ padding: "8px 6px", textAlign: "right" }}>
-                      {!r.revoked && (
-                        <button onClick={() => handleRevoke(r.id)} style={{ background: "transparent", border: `1px solid ${COLORS.red}`, color: COLORS.red, borderRadius: 3, padding: "4px 10px", cursor: "pointer", fontSize: 12, fontFamily: "'IBM Plex Mono', monospace" }}>
-                          Révoquer
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
-      </Panel>
-    </div>
-  );
-}
-
 const ALL_TABS = [
   { key: "centre_tri", label: "Centre de tri" },
   { key: "seconde_vie", label: "Opérateur de seconde vie" },
@@ -651,8 +500,7 @@ const ALL_TABS = [
 ];
 
 function TabbedDashboard({ token, data, onRefresh, onLock }) {
-  const baseTabs = data?.profil === "operationnel" ? ALL_TABS.filter((t) => t.key !== "facturation") : ALL_TABS;
-  const tabs = data?.editable ? [...baseTabs, { key: "acces", label: "Accès" }] : baseTabs;
+  const tabs = data?.profil === "operationnel" ? ALL_TABS.filter((t) => t.key !== "facturation") : ALL_TABS;
   const [tab, setTab] = useState(tabs[0].key);
 
   return (
@@ -684,7 +532,6 @@ function TabbedDashboard({ token, data, onRefresh, onLock }) {
       {tab === "facturation" && <FacturationDashboard data={data} />}
       {tab === "seconde_vie" && <OSVDashboard data={data} token={token} />}
       {tab === "data_quality" && <ComingSoonScreen profil={tab} onLock={onLock} />}
-      {tab === "acces" && <AccessManagement token={token} />}
     </div>
   );
 }
@@ -692,39 +539,12 @@ function TabbedDashboard({ token, data, onRefresh, onLock }) {
 export default function App() {
   const [token, setToken] = useState(null);
   const [data, setData] = useState(null);
-  const [checkingLink, setCheckingLink] = useState(true);
-  const [linkError, setLinkError] = useState("");
-
-  useEffect(() => {
-    const urlToken = new URLSearchParams(window.location.search).get("token");
-    if (!urlToken) {
-      setCheckingLink(false);
-      return;
-    }
-    fetchDashboard(urlToken)
-      .then((d) => {
-        setToken(urlToken);
-        setData(d);
-        // Nettoie l'URL pour ne pas garder le jeton visible dans l'historique du navigateur.
-        window.history.replaceState({}, "", window.location.pathname);
-      })
-      .catch((err) => setLinkError(err.message))
-      .finally(() => setCheckingLink(false));
-  }, []);
-
   const handleUnlock = (t, d) => { setToken(t); setData(d); };
   const handleRefresh = async () => {
     try { setData(await fetchDashboard(token)); } catch (e) { setToken(null); setData(null); }
   };
   const handleLock = () => { setToken(null); setData(null); };
 
-  if (checkingLink) {
-    return (
-      <div style={{ minHeight: "100%", display: "flex", alignItems: "center", justifyContent: "center", background: COLORS.bg, color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace" }}>
-        Vérification du lien...
-      </div>
-    );
-  }
-  if (!token) return <TokenScreen onUnlock={handleUnlock} initialError={linkError} />;
+  if (!token) return <TokenScreen onUnlock={handleUnlock} />;
   return <TabbedDashboard token={token} data={data} onRefresh={handleRefresh} onLock={handleLock} />;
 }
