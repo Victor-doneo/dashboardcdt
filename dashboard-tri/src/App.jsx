@@ -160,7 +160,9 @@ function pivotTendanceFournisseur(rows) {
     byMonth.set(m, {
       mois: m,
       darty_conforme: 0, darty_non_conforme: 0, darty_non_eligible: 0, darty_taux: null,
+      darty_nb_conforme: 0, darty_nb_non_conforme: 0, darty_nb_non_eligible: 0,
       revolog_conforme: 0, revolog_non_conforme: 0, revolog_non_eligible: 0, revolog_taux: null,
+      revolog_nb_conforme: 0, revolog_nb_non_conforme: 0, revolog_nb_non_eligible: 0,
     });
   }
   for (const r of rows || []) {
@@ -176,6 +178,9 @@ function pivotTendanceFournisseur(rows) {
     row[`${bucket}_non_conforme`] = Math.round(poidsNonConformeT * 100) / 100;
     row[`${bucket}_non_eligible`] = Math.round(poidsNonEligibleT * 100) / 100;
     row[`${bucket}_taux`] = taux;
+    row[`${bucket}_nb_conforme`] = r.nb_conformes || 0;
+    row[`${bucket}_nb_non_conforme`] = r.nb_non_conformes || 0;
+    row[`${bucket}_nb_non_eligible`] = r.nb_non_eligibles || 0;
   }
   return [...byMonth.values()].sort((a, b) => a.mois.localeCompare(b.mois));
 }
@@ -497,6 +502,44 @@ function Dashboard({ data, onRefresh, onLock }) {
               </Bar>
             </BarChart>
           </ResponsiveContainer>
+        </Panel>
+      )}
+
+      {tendanceFournisseurData.length > 0 && (
+        <Panel title="Évolution mensuelle par source (unités)" height={tendanceFournisseurData.length * 44 + 100}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <thead>
+              <tr>
+                <th></th>
+                <th colSpan={3} style={{ textAlign: "center", padding: "6px", color: COLORS.teal, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase", borderBottom: `1px solid ${COLORS.panelBorder}` }}>Darty</th>
+                <th colSpan={3} style={{ textAlign: "center", padding: "6px", color: COLORS.blue, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase", borderBottom: `1px solid ${COLORS.panelBorder}` }}>Revolog</th>
+              </tr>
+              <tr style={{ borderBottom: `1px solid ${COLORS.panelBorder}` }}>
+                <th style={{ textAlign: "left", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Mois</th>
+                <th style={{ textAlign: "right", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Conforme</th>
+                <th style={{ textAlign: "right", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Non conforme</th>
+                <th style={{ textAlign: "right", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Non éligible</th>
+                <th style={{ textAlign: "right", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Conforme</th>
+                <th style={{ textAlign: "right", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Non conforme</th>
+                <th style={{ textAlign: "right", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Non éligible</th>
+              </tr>
+            </thead>
+            <tbody>
+              {tendanceFournisseurData.map((r, i) => (
+                <tr key={i} style={{ borderBottom: `1px solid ${COLORS.panelBorder}` }}>
+                  <td style={{ padding: "8px 6px", color: COLORS.text, fontFamily: "'IBM Plex Mono', monospace" }}>
+                    {new Date(r.mois).toLocaleDateString("fr-FR", { month: "long", year: "numeric" })}
+                  </td>
+                  <td style={{ padding: "8px 6px", color: COLORS.text, textAlign: "right", fontFamily: "'IBM Plex Mono', monospace" }}>{r.darty_nb_conforme}</td>
+                  <td style={{ padding: "8px 6px", color: COLORS.text, textAlign: "right", fontFamily: "'IBM Plex Mono', monospace" }}>{r.darty_nb_non_conforme}</td>
+                  <td style={{ padding: "8px 6px", color: COLORS.text, textAlign: "right", fontFamily: "'IBM Plex Mono', monospace" }}>{r.darty_nb_non_eligible}</td>
+                  <td style={{ padding: "8px 6px", color: COLORS.text, textAlign: "right", fontFamily: "'IBM Plex Mono', monospace" }}>{r.revolog_nb_conforme}</td>
+                  <td style={{ padding: "8px 6px", color: COLORS.text, textAlign: "right", fontFamily: "'IBM Plex Mono', monospace" }}>{r.revolog_nb_non_conforme}</td>
+                  <td style={{ padding: "8px 6px", color: COLORS.text, textAlign: "right", fontFamily: "'IBM Plex Mono', monospace" }}>{r.revolog_nb_non_eligible}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </Panel>
       )}
     </div>
