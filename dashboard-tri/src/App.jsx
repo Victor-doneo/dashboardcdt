@@ -627,7 +627,7 @@ function FacturationDashboard({ data }) {
             <Tooltip contentStyle={{ background: COLORS.panel, border: `1px solid ${COLORS.panelBorder}`, borderRadius: 4 }} labelStyle={{ color: COLORS.text }} />
             <Legend wrapperStyle={{ fontSize: 12, color: COLORS.muted }} />
             <Bar dataKey="montant_tonnage" name="98 € × tonnes" fill={COLORS.teal} radius={[3, 3, 0, 0]} />
-            <Bar dataKey="montant_eligible" name="2 € × lignes éligibles" fill={COLORS.amber} radius={[3, 3, 0, 0]} />
+            <Bar dataKey="montant_eligible" name="2 € × unités éligibles au tri" fill={COLORS.amber} radius={[3, 3, 0, 0]} />
             <Bar dataKey="montant_palettes" name="8 € × palettes" fill={COLORS.blue} radius={[3, 3, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
@@ -646,9 +646,9 @@ function FacturationDashboard({ data }) {
             <tr style={{ borderBottom: `1px solid ${COLORS.panelBorder}` }}>
               <th style={{ textAlign: "left", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Mois</th>
               <th style={{ textAlign: "right", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Tonnage (€)</th>
-              <th style={{ textAlign: "right", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Éligibles (€)</th>
+              <th style={{ textAlign: "right", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Unités éligibles au tri (€)</th>
               <th style={{ textAlign: "right", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Tonnage (€)</th>
-              <th style={{ textAlign: "right", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Éligibles (€)</th>
+              <th style={{ textAlign: "right", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Unités éligibles au tri (€)</th>
               <th style={{ textAlign: "right", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Palettes (€)</th>
               <th style={{ textAlign: "right", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Total (€)</th>
             </tr>
