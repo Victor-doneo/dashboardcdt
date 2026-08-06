@@ -668,6 +668,38 @@ function DataQualityKpi({ data }) {
         <KpiCard label="Lignes comparées" value={dq?.nb_lignes_poids ?? "—"} accent={COLORS.slate} />
       </div>
 
+      {["GEMF", "GEMHF", "PAM"].map((categ) => {
+        const row = (data?.data_quality_categorie || []).find((r) => r.categ_code === categ);
+        return (
+          <div key={categ} style={{ marginBottom: 28 }}>
+            <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, letterSpacing: 2, color: COLORS.muted, textTransform: "uppercase", marginBottom: 10 }}>
+              Cohérence de poids — {categ}
+            </div>
+            <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
+              <KpiCard
+                label="Écart moyen (pesée réelle − référence)"
+                value={row?.ecart_moyen_kg ?? "—"}
+                unit="kg"
+                accent={COLORS.amber}
+              />
+              <KpiCard
+                label="Écart moyen (% du poids)"
+                value={row?.ecart_moyen_pct ?? "—"}
+                unit="%"
+                accent={COLORS.orange}
+              />
+              <KpiCard
+                label="Écart type"
+                value={row?.ecart_type_kg ?? "—"}
+                unit="kg"
+                accent={COLORS.blue}
+              />
+              <KpiCard label="Lignes comparées" value={row?.nb_lignes ?? "—"} accent={COLORS.slate} />
+            </div>
+          </div>
+        );
+      })}
+
       <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 26, color: COLORS.text, margin: "0 0 16px 0" }}>
         Qualité des données de tri
       </h1>
