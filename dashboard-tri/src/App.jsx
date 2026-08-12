@@ -922,11 +922,8 @@ function EcosystemDashboard({ token, isAdmin }) {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 24 }}>
         <div>
           <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, letterSpacing: 2, color: COLORS.teal, textTransform: "uppercase", marginBottom: 6 }}>
-            Ligne de tri — Ecosystem
+            Centre de tri - Ecosystem
           </div>
-          <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 26, color: COLORS.text, margin: 0 }}>
-            Déclarations Ecosystem (DEEE)
-          </h1>
         </div>
         <button onClick={load} style={{ background: "transparent", border: `1px solid ${COLORS.panelBorder}`, color: COLORS.muted, padding: "8px 16px", borderRadius: 3, cursor: "pointer", fontSize: 13, fontFamily: "'IBM Plex Mono', monospace" }}>
           Rafraîchir
@@ -1000,7 +997,7 @@ const ALL_TABS = [
   { key: "centre_tri", label: "Centre de tri" },
   { key: "seconde_vie", label: "Opérateur de seconde vie" },
   { key: "data_quality", label: "Data quality" },
-  { key: "ecosystem", label: "Ecosystem" },
+  { key: "ecosystem", label: "Déclaration" },
   { key: "facturation", label: "Facturation" },
 ];
 
