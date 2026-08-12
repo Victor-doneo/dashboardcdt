@@ -12,6 +12,7 @@ const COLORS = {
   muted: "#8B9499", teal: "#4FA894", amber: "#E0A458", slate: "#6B7B8C", red: "#C97064",
   blue: "#5B8FAE", orange: "#D9954D",
 };
+
 const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap');`;
 
 async function fetchDashboard(token) {
@@ -26,6 +27,36 @@ async function fetchDashboard(token) {
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.message || "Code d'accès incorrect");
+  return data;
+}
+
+async function fetchEcosystemStatus(token) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_ecosystem_declaration_status`, {
+    method: "POST",
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ p_token: token }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || "Erreur de chargement");
+  return data;
+}
+
+async function requestDeclaration(token, prefix, businessDate) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/request_ecosystem_declaration`, {
+    method: "POST",
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ p_token: token, p_prefix: prefix, p_business_date: businessDate }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || "Échec de la demande");
   return data;
 }
 
@@ -145,6 +176,7 @@ function getRollingMonths(n) {
   }
   return months;
 }
+
 const TARGET_MONTHS = getRollingMonths(3);
 
 function matchSupplierBucket(name) {
@@ -231,6 +263,7 @@ function OSVDashboard({ data, onLock, token }) {
   }, new Map())]
     .map(([client_name, v]) => ({ client_name, total: v.total, poids_kg: Math.round(v.poids_kg * 100) / 100 }))
     .sort((a, b) => b.total - a.total);
+
   const total = rows.reduce((acc, r) => acc + (r.nb_devices || 0), 0);
   const isAdmin = data?.editable === true;
   const [pending, setPending] = useState({});
@@ -385,7 +418,6 @@ function OSVDashboard({ data, onLock, token }) {
   );
 }
 
-
 function TauxLabel({ x, y, width, value }) {
   if (value === null || value === undefined) return null;
   return (
@@ -399,16 +431,19 @@ function Dashboard({ data, onRefresh, onLock }) {
   const { par_type = [], totaux = {}, tendance_fournisseur = [] } = data || {};
   const poidsTotalTonnes = totaux.poids_total_kg != null ? Math.round((totaux.poids_total_kg / 1000) * 100) / 100 : "—";
   const tendanceFournisseurData = pivotTendanceFournisseur(tendance_fournisseur);
+
   const pieTotal = (totaux.total_conformes ?? 0) + (totaux.total_non_conformes ?? 0) + (totaux.total_non_eligible ?? 0);
   const pieData = [
     { name: "Conformes", value: totaux.total_conformes ?? 0, color: COLORS.teal },
     { name: "Non conformes", value: totaux.total_non_conformes ?? 0, color: COLORS.red },
     { name: "Non éligible au tri", value: totaux.total_non_eligible ?? 0, color: COLORS.slate },
   ];
+
   const pieTooltipFormatter = (value, name) => {
     const pct = pieTotal > 0 ? Math.round((value / pieTotal) * 1000) / 10 : 0;
     return [`${value} (${pct}%)`, name];
   };
+
   const PieTooltipContent = ({ active, payload }) => {
     if (!active || !payload || !payload.length) return null;
     return (
@@ -746,7 +781,6 @@ function DataQualityKpi({ data }) {
       <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 26, color: COLORS.text, margin: "0 0 16px 0" }}>
         Qualité des données de tri
       </h1>
-
       <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, letterSpacing: 2, color: COLORS.teal, textTransform: "uppercase", marginBottom: 10 }}>
         Cohérence de données
       </div>
@@ -784,10 +818,189 @@ function DataQualityKpi({ data }) {
   );
 }
 
+const PREFIX_LABELS = {
+  "DAR-DEEE-PHU-": "Darty",
+  "REV-JDME-PHU-": "JDME",
+};
+
+function StatutBadge({ label, color }) {
+  return (
+    <span style={{
+      display: "inline-block", padding: "3px 10px", borderRadius: 12,
+      fontSize: 11, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 500,
+      color, border: `1px solid ${color}`, background: `${color}1A`,
+    }}>
+      {label}
+    </span>
+  );
+}
+
+function EcosystemDashboard({ token, isAdmin }) {
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [pendingIds, setPendingIds] = useState({});
+
+  const load = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const data = await fetchEcosystemStatus(token);
+      setRows(data.lots || []);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { load(); }, []);
+
+  useEffect(() => {
+    const ids = Object.keys(pendingIds);
+    if (ids.length === 0) return;
+    const interval = setInterval(async () => {
+      try {
+        const data = await fetchEcosystemStatus(token);
+        setRows(data.lots || []);
+        const stillPending = {};
+        (data.lots || []).forEach((r) => {
+          const key = `${r.prefix}|${r.business_date}`;
+          if (pendingIds[key] && r.request_status === "pending") stillPending[key] = true;
+        });
+        setPendingIds(stillPending);
+      } catch (err) {
+        // silencieux, on retentera au prochain intervalle
+      }
+    }, 4000);
+    return () => clearInterval(interval);
+  }, [pendingIds, token]);
+
+  const handleDeclare = async (row) => {
+    const key = `${row.prefix}|${row.business_date}`;
+    setPendingIds((p) => ({ ...p, [key]: true }));
+    try {
+      await requestDeclaration(token, row.prefix, row.business_date);
+    } catch (err) {
+      setError(err.message);
+      setPendingIds((p) => {
+        const next = { ...p };
+        delete next[key];
+        return next;
+      });
+    }
+  };
+
+  const renderStatut = (row) => {
+    const key = `${row.prefix}|${row.business_date}`;
+    if (pendingIds[key] || row.request_status === "pending" || row.request_status === "processing") {
+      return <StatutBadge label="En cours..." color={COLORS.amber} />;
+    }
+    if (row.declared) {
+      return <StatutBadge label="Déclaré" color={COLORS.teal} />;
+    }
+    if (!row.weights_complete) {
+      return <StatutBadge label="Pesée incomplète" color={COLORS.slate} />;
+    }
+    if (!row.archived) {
+      return <StatutBadge label="Non archivé" color={COLORS.slate} />;
+    }
+    if (row.request_status === "failed") {
+      return <StatutBadge label="Échec" color={COLORS.red} />;
+    }
+    return <StatutBadge label="Prêt" color={COLORS.blue} />;
+  };
+
+  const canDeclare = (row) => {
+    const key = `${row.prefix}|${row.business_date}`;
+    return isAdmin && !row.declared && row.weights_complete && row.archived && !pendingIds[key] && row.request_status !== "processing";
+  };
+
+  return (
+    <div style={{ minHeight: "100%", background: COLORS.bg, fontFamily: "'IBM Plex Sans', sans-serif", padding: 28 }}>
+      <style>{FONT_IMPORT}</style>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 24 }}>
+        <div>
+          <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, letterSpacing: 2, color: COLORS.teal, textTransform: "uppercase", marginBottom: 6 }}>
+            Ligne de tri — Ecosystem
+          </div>
+          <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 26, color: COLORS.text, margin: 0 }}>
+            Déclarations Ecosystem (DEEE)
+          </h1>
+        </div>
+        <button onClick={load} style={{ background: "transparent", border: `1px solid ${COLORS.panelBorder}`, color: COLORS.muted, padding: "8px 16px", borderRadius: 3, cursor: "pointer", fontSize: 13, fontFamily: "'IBM Plex Mono', monospace" }}>
+          Rafraîchir
+        </button>
+      </div>
+
+      {error && (
+        <div style={{ background: "rgba(201,112,100,0.1)", border: `1px solid ${COLORS.red}`, color: COLORS.red, padding: "10px 14px", borderRadius: 4, marginBottom: 16, fontSize: 13, fontFamily: "'IBM Plex Mono', monospace" }}>
+          {error}
+        </div>
+      )}
+
+      <Panel title={`Lots (${rows.length})`} height={Math.max(rows.length * 44 + 60, 200)}>
+        {loading ? (
+          <div style={{ color: COLORS.muted, padding: 20 }}>Chargement...</div>
+        ) : (
+          <div style={{ height: "100%", overflowY: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+              <thead>
+                <tr style={{ borderBottom: `1px solid ${COLORS.panelBorder}` }}>
+                  <th style={{ textAlign: "left", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Date</th>
+                  <th style={{ textAlign: "left", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Source</th>
+                  <th style={{ textAlign: "left", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Lots</th>
+                  <th style={{ textAlign: "left", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Statut</th>
+                  <th style={{ textAlign: "left", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Détail</th>
+                  {isAdmin && <th style={{ textAlign: "right", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Action</th>}
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row, i) => (
+                  <tr key={i} style={{ borderBottom: `1px solid ${COLORS.panelBorder}` }}>
+                    <td style={{ padding: "8px 6px", color: COLORS.text, fontFamily: "'IBM Plex Mono', monospace" }}>
+                      {new Date(row.business_date).toLocaleDateString("fr-FR")}
+                    </td>
+                    <td style={{ padding: "8px 6px", color: COLORS.text }}>{PREFIX_LABELS[row.prefix] || row.prefix}</td>
+                    <td style={{ padding: "8px 6px", color: COLORS.muted, fontSize: 12 }}>{(row.lot_names || []).join(", ")}</td>
+                    <td style={{ padding: "8px 6px" }}>{renderStatut(row)}</td>
+                    <td style={{ padding: "8px 6px", color: COLORS.muted, fontSize: 12 }}>
+                      {row.last_error ? row.last_error.slice(0, 80) : (row.request_message ? row.request_message.slice(0, 80) : "—")}
+                    </td>
+                    {isAdmin && (
+                      <td style={{ padding: "8px 6px", textAlign: "right" }}>
+                        <button
+                          onClick={() => handleDeclare(row)}
+                          disabled={!canDeclare(row)}
+                          style={{
+                            background: canDeclare(row) ? COLORS.teal : "transparent",
+                            color: canDeclare(row) ? "#0F1517" : COLORS.muted,
+                            border: canDeclare(row) ? "none" : `1px solid ${COLORS.panelBorder}`,
+                            borderRadius: 3, padding: "6px 14px", cursor: canDeclare(row) ? "pointer" : "not-allowed",
+                            fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 12,
+                            opacity: canDeclare(row) ? 1 : 0.6,
+                          }}
+                        >
+                          Déclarer
+                        </button>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Panel>
+    </div>
+  );
+}
+
 const ALL_TABS = [
   { key: "centre_tri", label: "Centre de tri" },
   { key: "seconde_vie", label: "Opérateur de seconde vie" },
   { key: "data_quality", label: "Data quality" },
+  { key: "ecosystem", label: "Ecosystem" },
   { key: "facturation", label: "Facturation" },
 ];
 
@@ -824,6 +1037,7 @@ function TabbedDashboard({ token, data, onRefresh, onLock }) {
       {tab === "facturation" && <FacturationDashboard data={data} />}
       {tab === "seconde_vie" && <OSVDashboard data={data} token={token} />}
       {tab === "data_quality" && <DataQualityKpi data={data} />}
+      {tab === "ecosystem" && <EcosystemDashboard token={token} isAdmin={data?.editable === true} />}
     </div>
   );
 }
@@ -831,6 +1045,7 @@ function TabbedDashboard({ token, data, onRefresh, onLock }) {
 export default function App() {
   const [token, setToken] = useState(null);
   const [data, setData] = useState(null);
+
   const handleUnlock = (t, d) => { setToken(t); setData(d); };
   const handleRefresh = async () => {
     try { setData(await fetchDashboard(token)); } catch (e) { setToken(null); setData(null); }
