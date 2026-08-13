@@ -921,7 +921,7 @@ function EcosystemDashboard({ token, isAdmin }) {
   const centreTriRows = rows.filter((r) => r.group_id === GROUP_CENTRE_TRI_ID);
   const osvRows = rows.filter((r) => r.group_id === GROUP_OSV_ID);
 
-  const renderTable = (tableRows) => (
+  const renderTable = (tableRows, useSupplierName = false) => (
     <div style={{ height: "100%", overflowY: "auto" }}>
       <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
         <thead>
@@ -940,7 +940,7 @@ function EcosystemDashboard({ token, isAdmin }) {
               <td style={{ padding: "8px 6px", color: COLORS.text, fontFamily: "'IBM Plex Mono', monospace" }}>
                 {new Date(row.business_date).toLocaleDateString("fr-FR")}
               </td>
-              <td style={{ padding: "8px 6px", color: COLORS.text }}>{PREFIX_LABELS[row.prefix] || row.prefix}</td>
+              <td style={{ padding: "8px 6px", color: COLORS.text }}>{useSupplierName ? (row.supplier_name || "—") : (PREFIX_LABELS[row.prefix] || row.prefix)}</td>
               <td style={{ padding: "8px 6px", color: COLORS.muted, fontSize: 12 }}>{(row.lot_names || []).join(", ")}</td>
               <td style={{ padding: "8px 6px" }}>{renderStatut(row)}</td>
               <td style={{ padding: "8px 6px", color: COLORS.muted, fontSize: 12 }}>
@@ -1005,7 +1005,7 @@ function EcosystemDashboard({ token, isAdmin }) {
         {loading ? (
           <div style={{ color: COLORS.muted, padding: 20 }}>Chargement...</div>
         ) : (
-          renderTable(osvRows)
+          renderTable(osvRows, true)
         )}
       </Panel>
     </div>
