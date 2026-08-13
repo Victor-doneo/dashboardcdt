@@ -916,8 +916,10 @@ function EcosystemDashboard({ token, isAdmin }) {
     return isAdmin && !row.declared && row.weights_complete && row.archived && !pendingIds[key] && row.request_status !== "processing";
   };
 
-  const GROUP_A_ID = "9a0b4aac-53d1-413c-8cc8-1f48e4ced9b2";
-  const groupARows = rows.filter((r) => r.group_id === GROUP_A_ID);
+  const GROUP_CENTRE_TRI_ID = "212e6d67-6165-42c3-a2c4-6b21335caf7b";
+  const GROUP_OSV_ID = "9a0b4aac-53d1-413c-8cc8-1f48e4ced9b2";
+  const centreTriRows = rows.filter((r) => r.group_id === GROUP_CENTRE_TRI_ID);
+  const osvRows = rows.filter((r) => r.group_id === GROUP_OSV_ID);
 
   const renderTable = (tableRows) => (
     <div style={{ height: "100%", overflowY: "auto" }}>
@@ -989,21 +991,21 @@ function EcosystemDashboard({ token, isAdmin }) {
         </div>
       )}
 
-      <Panel title={`Lots (${rows.length})`} height={Math.max(rows.length * 44 + 60, 200)}>
+      <Panel title={`Centre de tri - Ecosystem (${centreTriRows.length})`} height={Math.max(centreTriRows.length * 44 + 60, 200)}>
         {loading ? (
           <div style={{ color: COLORS.muted, padding: 20 }}>Chargement...</div>
         ) : (
-          renderTable(rows)
+          renderTable(centreTriRows)
         )}
       </Panel>
 
       <div style={{ height: 20 }} />
 
-      <Panel title={`Lots — Groupe 9a0b4aac (${groupARows.length})`} height={Math.max(groupARows.length * 44 + 60, 200)}>
+      <Panel title={`Opérateur de seconde vie - Doneo ESS (${osvRows.length})`} height={Math.max(osvRows.length * 44 + 60, 200)}>
         {loading ? (
           <div style={{ color: COLORS.muted, padding: 20 }}>Chargement...</div>
         ) : (
-          renderTable(groupARows)
+          renderTable(osvRows)
         )}
       </Panel>
     </div>
