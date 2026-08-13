@@ -916,6 +916,59 @@ function EcosystemDashboard({ token, isAdmin }) {
     return isAdmin && !row.declared && row.weights_complete && row.archived && !pendingIds[key] && row.request_status !== "processing";
   };
 
+  const GROUP_A_ID = "9a0b4aac-53d1-413c-8cc8-1f48e4ced9b2";
+  const groupARows = rows.filter((r) => r.group_id === GROUP_A_ID);
+
+  const renderTable = (tableRows) => (
+    <div style={{ height: "100%", overflowY: "auto" }}>
+      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+        <thead>
+          <tr style={{ borderBottom: `1px solid ${COLORS.panelBorder}` }}>
+            <th style={{ textAlign: "left", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Date</th>
+            <th style={{ textAlign: "left", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Source</th>
+            <th style={{ textAlign: "left", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Lots</th>
+            <th style={{ textAlign: "left", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Statut</th>
+            <th style={{ textAlign: "left", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Détail</th>
+            {isAdmin && <th style={{ textAlign: "right", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Action</th>}
+          </tr>
+        </thead>
+        <tbody>
+          {tableRows.map((row, i) => (
+            <tr key={i} style={{ borderBottom: `1px solid ${COLORS.panelBorder}` }}>
+              <td style={{ padding: "8px 6px", color: COLORS.text, fontFamily: "'IBM Plex Mono', monospace" }}>
+                {new Date(row.business_date).toLocaleDateString("fr-FR")}
+              </td>
+              <td style={{ padding: "8px 6px", color: COLORS.text }}>{PREFIX_LABELS[row.prefix] || row.prefix}</td>
+              <td style={{ padding: "8px 6px", color: COLORS.muted, fontSize: 12 }}>{(row.lot_names || []).join(", ")}</td>
+              <td style={{ padding: "8px 6px" }}>{renderStatut(row)}</td>
+              <td style={{ padding: "8px 6px", color: COLORS.muted, fontSize: 12 }}>
+                {row.last_error ? row.last_error.slice(0, 80) : (row.request_message ? row.request_message.slice(0, 80) : "—")}
+              </td>
+              {isAdmin && (
+                <td style={{ padding: "8px 6px", textAlign: "right" }}>
+                  <button
+                    onClick={() => handleDeclare(row)}
+                    disabled={!canDeclare(row)}
+                    style={{
+                      background: canDeclare(row) ? COLORS.teal : "transparent",
+                      color: canDeclare(row) ? "#0F1517" : COLORS.muted,
+                      border: canDeclare(row) ? "none" : `1px solid ${COLORS.panelBorder}`,
+                      borderRadius: 3, padding: "6px 14px", cursor: canDeclare(row) ? "pointer" : "not-allowed",
+                      fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 12,
+                      opacity: canDeclare(row) ? 1 : 0.6,
+                    }}
+                  >
+                    Déclarer
+                  </button>
+                </td>
+              )}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+
   return (
     <div style={{ minHeight: "100%", background: COLORS.bg, fontFamily: "'IBM Plex Sans', sans-serif", padding: 28 }}>
       <style>{FONT_IMPORT}</style>
@@ -940,53 +993,17 @@ function EcosystemDashboard({ token, isAdmin }) {
         {loading ? (
           <div style={{ color: COLORS.muted, padding: 20 }}>Chargement...</div>
         ) : (
-          <div style={{ height: "100%", overflowY: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-              <thead>
-                <tr style={{ borderBottom: `1px solid ${COLORS.panelBorder}` }}>
-                  <th style={{ textAlign: "left", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Date</th>
-                  <th style={{ textAlign: "left", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Source</th>
-                  <th style={{ textAlign: "left", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Lots</th>
-                  <th style={{ textAlign: "left", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Statut</th>
-                  <th style={{ textAlign: "left", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Détail</th>
-                  {isAdmin && <th style={{ textAlign: "right", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Action</th>}
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((row, i) => (
-                  <tr key={i} style={{ borderBottom: `1px solid ${COLORS.panelBorder}` }}>
-                    <td style={{ padding: "8px 6px", color: COLORS.text, fontFamily: "'IBM Plex Mono', monospace" }}>
-                      {new Date(row.business_date).toLocaleDateString("fr-FR")}
-                    </td>
-                    <td style={{ padding: "8px 6px", color: COLORS.text }}>{PREFIX_LABELS[row.prefix] || row.prefix}</td>
-                    <td style={{ padding: "8px 6px", color: COLORS.muted, fontSize: 12 }}>{(row.lot_names || []).join(", ")}</td>
-                    <td style={{ padding: "8px 6px" }}>{renderStatut(row)}</td>
-                    <td style={{ padding: "8px 6px", color: COLORS.muted, fontSize: 12 }}>
-                      {row.last_error ? row.last_error.slice(0, 80) : (row.request_message ? row.request_message.slice(0, 80) : "—")}
-                    </td>
-                    {isAdmin && (
-                      <td style={{ padding: "8px 6px", textAlign: "right" }}>
-                        <button
-                          onClick={() => handleDeclare(row)}
-                          disabled={!canDeclare(row)}
-                          style={{
-                            background: canDeclare(row) ? COLORS.teal : "transparent",
-                            color: canDeclare(row) ? "#0F1517" : COLORS.muted,
-                            border: canDeclare(row) ? "none" : `1px solid ${COLORS.panelBorder}`,
-                            borderRadius: 3, padding: "6px 14px", cursor: canDeclare(row) ? "pointer" : "not-allowed",
-                            fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 12,
-                            opacity: canDeclare(row) ? 1 : 0.6,
-                          }}
-                        >
-                          Déclarer
-                        </button>
-                      </td>
-                    )}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          renderTable(rows)
+        )}
+      </Panel>
+
+      <div style={{ height: 20 }} />
+
+      <Panel title={`Lots — Groupe 9a0b4aac (${groupARows.length})`} height={Math.max(groupARows.length * 44 + 60, 200)}>
+        {loading ? (
+          <div style={{ color: COLORS.muted, padding: 20 }}>Chargement...</div>
+        ) : (
+          renderTable(groupARows)
         )}
       </Panel>
     </div>
