@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, LineChart, Line, Legend, LabelList
+  PieChart, Pie, Cell, LineChart, Line, Legend, LabelList, ReferenceLine
 } from "recharts";
 
 const SUPABASE_URL = "https://zvqoxgugzfxbkhmqgvdk.supabase.co";
@@ -224,6 +224,77 @@ function formatDateFr(value) {
   return d.toLocaleDateString("fr-FR");
 }
 
+// Projette le stock disponible semaine par semaine pour GEM HF et GEM F :
+// stock = stock actuel + entrées moyennes historiques (mensuelles, ramenées
+// à la semaine) − sorties prévues (planning), afin d'identifier une future
+// rupture de stock.
+function buildStockProjection(stockActuel, historique, planningRows, weeksHorizon = 16) {
+  const TYPES = ["GEMHF", "GEMF"];
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const currentMonth = today.toISOString().slice(0, 7);
+
+  const avgMonthly = {};
+  for (const t of TYPES) {
+    const months = (historique || [])
+      .filter((h) => (h.categ_code || "").toUpperCase() === t)
+      .filter((h) => h.mois && h.mois.slice(0, 7) !== currentMonth)
+      .sort((a, b) => b.mois.localeCompare(a.mois))
+      .slice(0, 6);
+    avgMonthly[t] = months.length ? months.reduce((s, h) => s + (h.nb_devices || 0), 0) / months.length : 0;
+  }
+
+  const stockByType = {};
+  for (const t of TYPES) {
+    const row = (stockActuel || []).find((s) => (s.categ_code || "").toUpperCase() === t);
+    stockByType[t] = row ? row.nb_devices || 0 : 0;
+  }
+
+  const monday = new Date(today);
+  const dow = monday.getDay();
+  monday.setDate(monday.getDate() - ((dow + 6) % 7));
+
+  const weeks = [];
+  for (let i = 0; i <= weeksHorizon; i++) {
+    const d = new Date(monday);
+    d.setDate(d.getDate() + i * 7);
+    weeks.push(d);
+  }
+
+  const series = {};
+  const ruptureDate = {};
+  for (const t of TYPES) {
+    let stock = stockByType[t];
+    const weeklyRate = avgMonthly[t] / 4.345;
+    series[t] = [];
+    ruptureDate[t] = null;
+    for (let i = 0; i < weeks.length; i++) {
+      const weekStart = weeks[i];
+      const weekEnd = new Date(weekStart);
+      weekEnd.setDate(weekEnd.getDate() + 6);
+      const startStr = weekStart.toISOString().slice(0, 10);
+      const endStr = weekEnd.toISOString().slice(0, 10);
+
+      const outflow = (planningRows || [])
+        .filter((p) => p.date_prevue && p.date_prevue >= startStr && p.date_prevue <= endStr)
+        .reduce((s, p) => s + (Number(t === "GEMHF" ? p.prevu_gem_hf : p.prevu_gem_f) || 0), 0);
+
+      stock = i === 0 ? stock - outflow : stock + weeklyRate - outflow;
+      const rounded = Math.round(stock * 10) / 10;
+      series[t].push({ weekStart: startStr, stock: rounded });
+      if (rounded < 0 && ruptureDate[t] === null) ruptureDate[t] = startStr;
+    }
+  }
+
+  const chartRows = weeks.map((w, i) => ({
+    weekStart: w.toISOString().slice(0, 10),
+    GEMHF: series.GEMHF[i]?.stock ?? null,
+    GEMF: series.GEMF[i]?.stock ?? null,
+  }));
+
+  return { chartRows, ruptureDate, avgMonthly, stockByType };
+}
+
 function pivotLotsByCateg(lots, palettes) {
   const byLot = new Map();
   for (const r of lots || []) {
@@ -323,6 +394,9 @@ function OSVDashboard({ data, onLock, token, onRefresh }) {
 
   const total = rows.reduce((acc, r) => acc + (r.nb_devices || 0), 0);
   const isAdmin = data?.editable === true;
+
+  const projection = buildStockProjection(data?.osv_stock_actuel, data?.osv_historique_mensuel, data?.osv_lot_planning);
+
   const [pending, setPending] = useState({});
   const [saving, setSaving] = useState(null);
   const [error, setError] = useState("");
@@ -684,6 +758,54 @@ function OSVDashboard({ data, onLock, token, onRefresh }) {
           )}
         </div>
       </Panel>
+
+      <Panel title="Projection du stock — risque de rupture" height={340}>
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={projection.chartRows} margin={{ left: -10, right: 10 }}>
+            <CartesianGrid stroke={COLORS.panelBorder} vertical={false} />
+            <XAxis dataKey="weekStart" tick={{ fill: COLORS.muted, fontSize: 11 }} tickFormatter={(d) => formatDateFr(d)} />
+            <YAxis tick={{ fill: COLORS.muted, fontSize: 11 }} />
+            <Tooltip
+              contentStyle={{ background: COLORS.panel, border: `1px solid ${COLORS.panelBorder}`, borderRadius: 4 }}
+              labelStyle={{ color: COLORS.text }}
+              labelFormatter={(d) => `Semaine du ${formatDateFr(d)}`}
+            />
+            <Legend wrapperStyle={{ fontSize: 12, color: COLORS.muted }} />
+            <ReferenceLine y={0} stroke={COLORS.red} strokeDasharray="4 4" label={{ value: "Rupture", fill: COLORS.red, fontSize: 11, position: "insideTopLeft" }} />
+            <Line type="monotone" dataKey="GEMHF" name="GEM HF" stroke={COLORS.teal} strokeWidth={2} dot={false} />
+            <Line type="monotone" dataKey="GEMF" name="GEM F" stroke={COLORS.amber} strokeWidth={2} dot={false} />
+          </LineChart>
+        </ResponsiveContainer>
+      </Panel>
+
+      <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 20 }}>
+        {["GEMHF", "GEMF"].map((t) => (
+          <div
+            key={t}
+            style={{
+              flex: "1 1 260px",
+              background: COLORS.panel,
+              border: `1px solid ${projection.ruptureDate[t] ? COLORS.red : COLORS.panelBorder}`,
+              borderRadius: 4,
+              padding: "12px 16px",
+              fontFamily: "'IBM Plex Mono', monospace",
+              fontSize: 13,
+            }}
+          >
+            <div style={{ color: COLORS.muted, fontSize: 11, textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>
+              {t === "GEMHF" ? "GEM HF" : "GEM F"}
+            </div>
+            <div style={{ color: COLORS.text, marginBottom: 4 }}>
+              Stock actuel : <b>{Math.round(projection.stockByType[t] ?? 0)}</b> · entrées moy. estimées : <b>{Math.round((projection.avgMonthly[t] ?? 0) * 10) / 10}</b>/mois
+            </div>
+            <div style={{ color: projection.ruptureDate[t] ? COLORS.red : COLORS.teal }}>
+              {projection.ruptureDate[t]
+                ? `⚠ Risque de rupture à partir du ${formatDateFr(projection.ruptureDate[t])}`
+                : "Aucun risque de rupture identifié sur les 16 prochaines semaines"}
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
