@@ -271,12 +271,27 @@ async function addOsvLotPlanning(token, entry) {
     body: JSON.stringify({
       p_token: token,
       p_client_name: entry.client_name,
-      p_sale_lot_name: entry.sale_lot_name,
+      p_sale_lot_name: entry.sale_lot_name || null,
       p_date_prevue: entry.date_prevue || null,
       p_prevu_gem_hf: Number(entry.prevu_gem_hf) || 0,
       p_prevu_gem_f: Number(entry.prevu_gem_f) || 0,
       p_comment: entry.comment || null,
     }),
+  });
+  const newId = await res.json();
+  if (!res.ok) throw new Error(newId?.message || "Échec de l'enregistrement");
+  return newId;
+}
+
+async function setOsvLotPlanningName(token, id, saleLotName) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/set_osv_lot_planning_name`, {
+    method: "POST",
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ p_token: token, p_id: id, p_sale_lot_name: saleLotName || null }),
   });
   if (!res.ok) throw new Error((await res.json()).message || "Échec de l'enregistrement");
 }
@@ -315,10 +330,18 @@ function OSVDashboard({ data, onLock, token, onRefresh }) {
   const planning = [...(data?.osv_lot_planning || [])].sort((a, b) =>
     (a.date_prevue || "9999-99-99").localeCompare(b.date_prevue || "9999-99-99")
   );
+  const [planningRows, setPlanningRows] = useState(planning);
+  useEffect(() => { setPlanningRows(planning); }, [data?.osv_lot_planning]);
+
   const [planningForm, setPlanningForm] = useState({ client_name: "", sale_lot_name: "", date_prevue: "", prevu_gem_hf: "", prevu_gem_f: "", comment: "" });
   const [planningSaving, setPlanningSaving] = useState(false);
   const [planningDeletingId, setPlanningDeletingId] = useState(null);
   const [planningError, setPlanningError] = useState("");
+  const [pendingLotName, setPendingLotName] = useState({});
+  const [savingLotNameId, setSavingLotNameId] = useState(null);
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const sortPlanning = (arr) => [...arr].sort((a, b) => (a.date_prevue || "9999-99-99").localeCompare(b.date_prevue || "9999-99-99"));
 
   const handleSavePalette = async (row) => {
     const lotKey = `${row.client_name || ""}|${row.sale_lot_name || ""}`;
@@ -336,14 +359,24 @@ function OSVDashboard({ data, onLock, token, onRefresh }) {
   };
 
   const handleAddPlanning = async () => {
-    if (!planningForm.client_name || !planningForm.sale_lot_name) {
-      setPlanningError("Client et nom du lot sont obligatoires.");
+    if (!planningForm.client_name) {
+      setPlanningError("Le client est obligatoire.");
       return;
     }
     setPlanningSaving(true);
     setPlanningError("");
     try {
-      await addOsvLotPlanning(token, planningForm);
+      const newId = await addOsvLotPlanning(token, planningForm);
+      const newRow = {
+        id: newId,
+        client_name: planningForm.client_name,
+        sale_lot_name: planningForm.sale_lot_name || null,
+        date_prevue: planningForm.date_prevue || null,
+        prevu_gem_hf: Number(planningForm.prevu_gem_hf) || 0,
+        prevu_gem_f: Number(planningForm.prevu_gem_f) || 0,
+        comment: planningForm.comment || null,
+      };
+      setPlanningRows((rows) => sortPlanning([...rows, newRow]));
       setPlanningForm({ client_name: "", sale_lot_name: "", date_prevue: "", prevu_gem_hf: "", prevu_gem_f: "", comment: "" });
       if (onRefresh) onRefresh();
     } catch (err) {
@@ -358,11 +391,27 @@ function OSVDashboard({ data, onLock, token, onRefresh }) {
     setPlanningError("");
     try {
       await deleteOsvLotPlanning(token, id);
+      setPlanningRows((rows) => rows.filter((r) => r.id !== id));
       if (onRefresh) onRefresh();
     } catch (err) {
       setPlanningError(err.message);
     } finally {
       setPlanningDeletingId(null);
+    }
+  };
+
+  const handleSaveLotName = async (row) => {
+    const value = pendingLotName[row.id] !== undefined ? pendingLotName[row.id] : row.sale_lot_name || "";
+    setSavingLotNameId(row.id);
+    setPlanningError("");
+    try {
+      await setOsvLotPlanningName(token, row.id, value);
+      setPlanningRows((rows) => rows.map((r) => (r.id === row.id ? { ...r, sale_lot_name: value || null } : r)));
+      if (onRefresh) onRefresh();
+    } catch (err) {
+      setPlanningError(err.message);
+    } finally {
+      setSavingLotNameId(null);
     }
   };
 
@@ -499,13 +548,13 @@ function OSVDashboard({ data, onLock, token, onRefresh }) {
         </div>
       </Panel>
 
-      <Panel title="Planning — lots à venir" height={Math.max((planning.length + (isAdmin ? 2 : 0)) * 44 + 60, 220)}>
+      <Panel title="Planning — lots à venir" height={Math.max((planningRows.length + (isAdmin ? 2 : 0)) * 44 + 60, 220)}>
         <div style={{ height: "100%", overflowY: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
             <thead>
               <tr style={{ borderBottom: `1px solid ${COLORS.panelBorder}` }}>
                 <th style={{ textAlign: "left", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Client</th>
-                <th style={{ textAlign: "left", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Lot</th>
+                <th style={{ textAlign: "left", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Lot (effectif)</th>
                 <th style={{ textAlign: "right", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Date prévue</th>
                 <th style={{ textAlign: "right", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>GEM HF prévu</th>
                 <th style={{ textAlign: "right", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>GEM F prévu</th>
@@ -514,28 +563,52 @@ function OSVDashboard({ data, onLock, token, onRefresh }) {
               </tr>
             </thead>
             <tbody>
-              {planning.map((r) => (
-                <tr key={r.id} style={{ borderBottom: `1px solid ${COLORS.panelBorder}` }}>
-                  <td style={{ padding: "8px 6px", color: COLORS.text }}>{r.client_name ?? "—"}</td>
-                  <td style={{ padding: "8px 6px", color: COLORS.text }}>{r.sale_lot_name ?? "—"}</td>
-                  <td style={{ padding: "8px 6px", color: COLORS.text, textAlign: "right", fontFamily: "'IBM Plex Mono', monospace" }}>{formatDateFr(r.date_prevue)}</td>
-                  <td style={{ padding: "8px 6px", color: COLORS.text, textAlign: "right", fontFamily: "'IBM Plex Mono', monospace" }}>{r.prevu_gem_hf ?? 0}</td>
-                  <td style={{ padding: "8px 6px", color: COLORS.text, textAlign: "right", fontFamily: "'IBM Plex Mono', monospace" }}>{r.prevu_gem_f ?? 0}</td>
-                  <td style={{ padding: "8px 6px", color: COLORS.muted }}>{r.comment ?? ""}</td>
-                  {isAdmin && (
-                    <td style={{ padding: "8px 6px", textAlign: "right" }}>
-                      <button
-                        onClick={() => handleDeletePlanning(r.id)}
-                        disabled={planningDeletingId === r.id}
-                        style={{ background: "transparent", border: `1px solid ${COLORS.red}`, color: COLORS.red, borderRadius: 3, padding: "3px 8px", cursor: "pointer", fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, opacity: planningDeletingId === r.id ? 0.5 : 1 }}
-                      >
-                        {planningDeletingId === r.id ? "..." : "Suppr."}
-                      </button>
+              {planningRows.map((r) => {
+                const isPastDue = !!r.date_prevue && r.date_prevue <= todayStr && !r.sale_lot_name;
+                return (
+                  <tr key={r.id} style={{ borderBottom: `1px solid ${COLORS.panelBorder}`, background: isPastDue ? "rgba(224,164,88,0.08)" : "transparent" }}>
+                    <td style={{ padding: "8px 6px", color: COLORS.text }}>{r.client_name ?? "—"}</td>
+                    <td style={{ padding: "8px 6px", color: COLORS.text }}>
+                      {isAdmin ? (
+                        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                          <input
+                            type="text"
+                            placeholder={isPastDue ? "Lot à renseigner" : "Lot"}
+                            defaultValue={r.sale_lot_name || ""}
+                            onChange={(e) => setPendingLotName((p) => ({ ...p, [r.id]: e.target.value }))}
+                            style={{ width: 140, boxSizing: "border-box", padding: "4px 6px", background: "#1B2124", border: `1px solid ${isPastDue ? COLORS.amber : COLORS.panelBorder}`, borderRadius: 3, color: COLORS.text, fontSize: 13, outline: "none" }}
+                          />
+                          <button
+                            onClick={() => handleSaveLotName(r)}
+                            disabled={savingLotNameId === r.id}
+                            style={{ background: COLORS.teal, color: "#0F1517", border: "none", borderRadius: 3, padding: "0 10px", cursor: "pointer", fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 12, opacity: savingLotNameId === r.id ? 0.6 : 1 }}
+                          >
+                            {savingLotNameId === r.id ? "..." : "OK"}
+                          </button>
+                        </div>
+                      ) : (
+                        <span>{r.sale_lot_name || (isPastDue ? "À renseigner" : "—")}</span>
+                      )}
                     </td>
-                  )}
-                </tr>
-              ))}
-              {planning.length === 0 && (
+                    <td style={{ padding: "8px 6px", color: COLORS.text, textAlign: "right", fontFamily: "'IBM Plex Mono', monospace" }}>{formatDateFr(r.date_prevue)}</td>
+                    <td style={{ padding: "8px 6px", color: COLORS.text, textAlign: "right", fontFamily: "'IBM Plex Mono', monospace" }}>{r.prevu_gem_hf ?? 0}</td>
+                    <td style={{ padding: "8px 6px", color: COLORS.text, textAlign: "right", fontFamily: "'IBM Plex Mono', monospace" }}>{r.prevu_gem_f ?? 0}</td>
+                    <td style={{ padding: "8px 6px", color: COLORS.muted }}>{r.comment ?? ""}</td>
+                    {isAdmin && (
+                      <td style={{ padding: "8px 6px", textAlign: "right" }}>
+                        <button
+                          onClick={() => handleDeletePlanning(r.id)}
+                          disabled={planningDeletingId === r.id}
+                          style={{ background: "transparent", border: `1px solid ${COLORS.red}`, color: COLORS.red, borderRadius: 3, padding: "3px 8px", cursor: "pointer", fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, opacity: planningDeletingId === r.id ? 0.5 : 1 }}
+                        >
+                          {planningDeletingId === r.id ? "..." : "Suppr."}
+                        </button>
+                      </td>
+                    )}
+                  </tr>
+                );
+              })}
+              {planningRows.length === 0 && (
                 <tr>
                   <td colSpan={isAdmin ? 7 : 6} style={{ padding: "12px 6px", color: COLORS.muted, fontStyle: "italic" }}>
                     Aucun lot à venir planifié.
@@ -560,7 +633,7 @@ function OSVDashboard({ data, onLock, token, onRefresh }) {
                 />
                 <input
                   type="text"
-                  placeholder="Nom du lot"
+                  placeholder="Nom du lot (optionnel)"
                   value={planningForm.sale_lot_name}
                   onChange={(e) => setPlanningForm((f) => ({ ...f, sale_lot_name: e.target.value }))}
                   style={{ width: 160, boxSizing: "border-box", padding: "6px 8px", background: "#1B2124", border: `1px solid ${COLORS.panelBorder}`, borderRadius: 3, color: COLORS.text, fontSize: 13, outline: "none" }}
