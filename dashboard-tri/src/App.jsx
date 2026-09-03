@@ -228,7 +228,7 @@ function formatDateFr(value) {
 // stock = stock actuel + entrées moyennes historiques (mensuelles, ramenées
 // à la semaine) − sorties prévues (planning), afin d'identifier une future
 // rupture de stock.
-function buildStockProjection(stockActuel, historique, planningRows, weeksHorizon = 16) {
+function buildStockProjection(stockActuel, historique, planningRows, weeksHorizon = 5) {
   const TYPES = ["GEMHF", "GEMF"];
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -801,7 +801,7 @@ function OSVDashboard({ data, onLock, token, onRefresh }) {
             <div style={{ color: projection.ruptureDate[t] ? COLORS.red : COLORS.teal }}>
               {projection.ruptureDate[t]
                 ? `⚠ Risque de rupture à partir du ${formatDateFr(projection.ruptureDate[t])}`
-                : "Aucun risque de rupture identifié sur les 16 prochaines semaines"}
+                : "Aucun risque de rupture identifié sur les 5 prochaines semaines"}
             </div>
           </div>
         ))}
