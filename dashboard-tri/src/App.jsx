@@ -217,14 +217,22 @@ function pivotTendanceFournisseur(rows) {
   return [...byMonth.values()].sort((a, b) => a.mois.localeCompare(b.mois));
 }
 
+function formatDateFr(value) {
+  if (!value) return "—";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString("fr-FR");
+}
+
 function pivotLotsByCateg(lots, palettes) {
   const byLot = new Map();
   for (const r of lots || []) {
     const key = `${r.client_name || ""}|${r.sale_lot_name || ""}`;
     if (!byLot.has(key)) {
-      byLot.set(key, { client_name: r.client_name, sale_lot_name: r.sale_lot_name, gemf: 0, gemhf: 0, nb_palettes: 0, poids_kg: 0 });
+      byLot.set(key, { client_name: r.client_name, sale_lot_name: r.sale_lot_name, gemf: 0, gemhf: 0, nb_palettes: 0, poids_kg: 0, date_depart: r.date_depart || null });
     }
     const row = byLot.get(key);
+    if (!row.date_depart && r.date_depart) row.date_depart = r.date_depart;
     const categ = (r.categ_code || "").toUpperCase();
     if (categ === "GEMF") row.gemf += r.nb_devices || 0;
     else if (categ === "GEMHF") row.gemhf += r.nb_devices || 0;
@@ -252,7 +260,41 @@ async function saveLotPalettes(token, clientName, saleLotName, nbPalettes) {
   if (!res.ok) throw new Error((await res.json()).message || "Échec de l'enregistrement");
 }
 
-function OSVDashboard({ data, onLock, token }) {
+async function addOsvLotPlanning(token, entry) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/add_osv_lot_planning`, {
+    method: "POST",
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      p_token: token,
+      p_client_name: entry.client_name,
+      p_sale_lot_name: entry.sale_lot_name,
+      p_date_prevue: entry.date_prevue || null,
+      p_prevu_gem_hf: Number(entry.prevu_gem_hf) || 0,
+      p_prevu_gem_f: Number(entry.prevu_gem_f) || 0,
+      p_comment: entry.comment || null,
+    }),
+  });
+  if (!res.ok) throw new Error((await res.json()).message || "Échec de l'enregistrement");
+}
+
+async function deleteOsvLotPlanning(token, id) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/delete_osv_lot_planning`, {
+    method: "POST",
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ p_token: token, p_id: id }),
+  });
+  if (!res.ok) throw new Error((await res.json()).message || "Échec de la suppression");
+}
+
+function OSVDashboard({ data, onLock, token, onRefresh }) {
   const rows = data?.osv_par_type || [];
   const lots = pivotLotsByCateg(data?.osv_lots, data?.osv_lot_palettes);
   const clientTotals = [...lots.reduce((map, r) => {
@@ -270,6 +312,14 @@ function OSVDashboard({ data, onLock, token }) {
   const [saving, setSaving] = useState(null);
   const [error, setError] = useState("");
 
+  const planning = [...(data?.osv_lot_planning || [])].sort((a, b) =>
+    (a.date_prevue || "9999-99-99").localeCompare(b.date_prevue || "9999-99-99")
+  );
+  const [planningForm, setPlanningForm] = useState({ client_name: "", sale_lot_name: "", date_prevue: "", prevu_gem_hf: "", prevu_gem_f: "", comment: "" });
+  const [planningSaving, setPlanningSaving] = useState(false);
+  const [planningDeletingId, setPlanningDeletingId] = useState(null);
+  const [planningError, setPlanningError] = useState("");
+
   const handleSavePalette = async (row) => {
     const lotKey = `${row.client_name || ""}|${row.sale_lot_name || ""}`;
     const value = pending[lotKey] !== undefined ? pending[lotKey] : row.nb_palettes;
@@ -277,10 +327,42 @@ function OSVDashboard({ data, onLock, token }) {
     setError("");
     try {
       await saveLotPalettes(token, row.client_name, row.sale_lot_name, Number(value) || 0);
+      if (onRefresh) onRefresh();
     } catch (err) {
       setError(err.message);
     } finally {
       setSaving(null);
+    }
+  };
+
+  const handleAddPlanning = async () => {
+    if (!planningForm.client_name || !planningForm.sale_lot_name) {
+      setPlanningError("Client et nom du lot sont obligatoires.");
+      return;
+    }
+    setPlanningSaving(true);
+    setPlanningError("");
+    try {
+      await addOsvLotPlanning(token, planningForm);
+      setPlanningForm({ client_name: "", sale_lot_name: "", date_prevue: "", prevu_gem_hf: "", prevu_gem_f: "", comment: "" });
+      if (onRefresh) onRefresh();
+    } catch (err) {
+      setPlanningError(err.message);
+    } finally {
+      setPlanningSaving(false);
+    }
+  };
+
+  const handleDeletePlanning = async (id) => {
+    setPlanningDeletingId(id);
+    setPlanningError("");
+    try {
+      await deleteOsvLotPlanning(token, id);
+      if (onRefresh) onRefresh();
+    } catch (err) {
+      setPlanningError(err.message);
+    } finally {
+      setPlanningDeletingId(null);
     }
   };
 
@@ -368,6 +450,7 @@ function OSVDashboard({ data, onLock, token }) {
                 <th style={{ textAlign: "right", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>GEMHF</th>
                 <th style={{ textAlign: "right", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Total</th>
                 <th style={{ textAlign: "right", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Palettes</th>
+                <th style={{ textAlign: "right", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Date de départ</th>
               </tr>
             </thead>
             <tbody>
@@ -402,6 +485,7 @@ function OSVDashboard({ data, onLock, token }) {
                         <span style={{ color: COLORS.text, fontFamily: "'IBM Plex Mono', monospace" }}>{r.nb_palettes}</span>
                       )}
                     </td>
+                    <td style={{ padding: "8px 6px", color: COLORS.text, textAlign: "right", fontFamily: "'IBM Plex Mono', monospace" }}>{formatDateFr(r.date_depart)}</td>
                   </tr>
                 );
               })}
@@ -410,6 +494,119 @@ function OSVDashboard({ data, onLock, token }) {
           {error && (
             <div style={{ background: "rgba(201,112,100,0.1)", border: `1px solid ${COLORS.red}`, color: COLORS.red, padding: "10px 14px", borderRadius: 4, marginTop: 12, fontSize: 13, fontFamily: "'IBM Plex Mono', monospace" }}>
               {error}
+            </div>
+          )}
+        </div>
+      </Panel>
+
+      <Panel title="Planning — lots à venir" height={Math.max((planning.length + (isAdmin ? 2 : 0)) * 44 + 60, 220)}>
+        <div style={{ height: "100%", overflowY: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <thead>
+              <tr style={{ borderBottom: `1px solid ${COLORS.panelBorder}` }}>
+                <th style={{ textAlign: "left", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Client</th>
+                <th style={{ textAlign: "left", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Lot</th>
+                <th style={{ textAlign: "right", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Date prévue</th>
+                <th style={{ textAlign: "right", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>GEM HF prévu</th>
+                <th style={{ textAlign: "right", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>GEM F prévu</th>
+                <th style={{ textAlign: "left", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Commentaire</th>
+                {isAdmin && <th style={{ padding: "8px 6px" }}></th>}
+              </tr>
+            </thead>
+            <tbody>
+              {planning.map((r) => (
+                <tr key={r.id} style={{ borderBottom: `1px solid ${COLORS.panelBorder}` }}>
+                  <td style={{ padding: "8px 6px", color: COLORS.text }}>{r.client_name ?? "—"}</td>
+                  <td style={{ padding: "8px 6px", color: COLORS.text }}>{r.sale_lot_name ?? "—"}</td>
+                  <td style={{ padding: "8px 6px", color: COLORS.text, textAlign: "right", fontFamily: "'IBM Plex Mono', monospace" }}>{formatDateFr(r.date_prevue)}</td>
+                  <td style={{ padding: "8px 6px", color: COLORS.text, textAlign: "right", fontFamily: "'IBM Plex Mono', monospace" }}>{r.prevu_gem_hf ?? 0}</td>
+                  <td style={{ padding: "8px 6px", color: COLORS.text, textAlign: "right", fontFamily: "'IBM Plex Mono', monospace" }}>{r.prevu_gem_f ?? 0}</td>
+                  <td style={{ padding: "8px 6px", color: COLORS.muted }}>{r.comment ?? ""}</td>
+                  {isAdmin && (
+                    <td style={{ padding: "8px 6px", textAlign: "right" }}>
+                      <button
+                        onClick={() => handleDeletePlanning(r.id)}
+                        disabled={planningDeletingId === r.id}
+                        style={{ background: "transparent", border: `1px solid ${COLORS.red}`, color: COLORS.red, borderRadius: 3, padding: "3px 8px", cursor: "pointer", fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, opacity: planningDeletingId === r.id ? 0.5 : 1 }}
+                      >
+                        {planningDeletingId === r.id ? "..." : "Suppr."}
+                      </button>
+                    </td>
+                  )}
+                </tr>
+              ))}
+              {planning.length === 0 && (
+                <tr>
+                  <td colSpan={isAdmin ? 7 : 6} style={{ padding: "12px 6px", color: COLORS.muted, fontStyle: "italic" }}>
+                    Aucun lot à venir planifié.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+
+          {isAdmin && (
+            <div style={{ marginTop: 16, paddingTop: 14, borderTop: `1px solid ${COLORS.panelBorder}` }}>
+              <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, letterSpacing: 1, color: COLORS.muted, textTransform: "uppercase", marginBottom: 10 }}>
+                Ajouter un lot à venir
+              </div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                <input
+                  type="text"
+                  placeholder="Client"
+                  value={planningForm.client_name}
+                  onChange={(e) => setPlanningForm((f) => ({ ...f, client_name: e.target.value }))}
+                  style={{ width: 140, boxSizing: "border-box", padding: "6px 8px", background: "#1B2124", border: `1px solid ${COLORS.panelBorder}`, borderRadius: 3, color: COLORS.text, fontSize: 13, outline: "none" }}
+                />
+                <input
+                  type="text"
+                  placeholder="Nom du lot"
+                  value={planningForm.sale_lot_name}
+                  onChange={(e) => setPlanningForm((f) => ({ ...f, sale_lot_name: e.target.value }))}
+                  style={{ width: 160, boxSizing: "border-box", padding: "6px 8px", background: "#1B2124", border: `1px solid ${COLORS.panelBorder}`, borderRadius: 3, color: COLORS.text, fontSize: 13, outline: "none" }}
+                />
+                <input
+                  type="date"
+                  value={planningForm.date_prevue}
+                  onChange={(e) => setPlanningForm((f) => ({ ...f, date_prevue: e.target.value }))}
+                  style={{ padding: "6px 8px", background: "#1B2124", border: `1px solid ${COLORS.panelBorder}`, borderRadius: 3, color: COLORS.text, fontSize: 13, outline: "none", fontFamily: "'IBM Plex Mono', monospace" }}
+                />
+                <input
+                  type="number"
+                  min="0"
+                  placeholder="GEM HF prévu"
+                  value={planningForm.prevu_gem_hf}
+                  onChange={(e) => setPlanningForm((f) => ({ ...f, prevu_gem_hf: e.target.value }))}
+                  style={{ width: 110, boxSizing: "border-box", padding: "6px 8px", background: "#1B2124", border: `1px solid ${COLORS.panelBorder}`, borderRadius: 3, color: COLORS.text, fontSize: 13, outline: "none", fontFamily: "'IBM Plex Mono', monospace", textAlign: "right" }}
+                />
+                <input
+                  type="number"
+                  min="0"
+                  placeholder="GEM F prévu"
+                  value={planningForm.prevu_gem_f}
+                  onChange={(e) => setPlanningForm((f) => ({ ...f, prevu_gem_f: e.target.value }))}
+                  style={{ width: 110, boxSizing: "border-box", padding: "6px 8px", background: "#1B2124", border: `1px solid ${COLORS.panelBorder}`, borderRadius: 3, color: COLORS.text, fontSize: 13, outline: "none", fontFamily: "'IBM Plex Mono', monospace", textAlign: "right" }}
+                />
+                <input
+                  type="text"
+                  placeholder="Commentaire (optionnel)"
+                  value={planningForm.comment}
+                  onChange={(e) => setPlanningForm((f) => ({ ...f, comment: e.target.value }))}
+                  style={{ flex: 1, minWidth: 160, boxSizing: "border-box", padding: "6px 8px", background: "#1B2124", border: `1px solid ${COLORS.panelBorder}`, borderRadius: 3, color: COLORS.text, fontSize: 13, outline: "none" }}
+                />
+                <button
+                  onClick={handleAddPlanning}
+                  disabled={planningSaving}
+                  style={{ background: COLORS.teal, color: "#0F1517", border: "none", borderRadius: 3, padding: "7px 14px", cursor: "pointer", fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 12, opacity: planningSaving ? 0.6 : 1 }}
+                >
+                  {planningSaving ? "..." : "Ajouter"}
+                </button>
+              </div>
+              {planningError && (
+                <div style={{ background: "rgba(201,112,100,0.1)", border: `1px solid ${COLORS.red}`, color: COLORS.red, padding: "10px 14px", borderRadius: 4, marginTop: 12, fontSize: 13, fontFamily: "'IBM Plex Mono', monospace" }}>
+                  {planningError}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -1051,7 +1248,7 @@ function TabbedDashboard({ token, data, onRefresh, onLock }) {
       </div>
       {tab === "centre_tri" && <Dashboard data={data} onRefresh={onRefresh} onLock={onLock} />}
       {tab === "facturation" && <FacturationDashboard data={data} />}
-      {tab === "seconde_vie" && <OSVDashboard data={data} token={token} />}
+      {tab === "seconde_vie" && <OSVDashboard data={data} token={token} onRefresh={onRefresh} />}
       {tab === "data_quality" && <DataQualityKpi data={data} />}
       {tab === "ecosystem" && <EcosystemDashboard token={token} isAdmin={data?.editable === true} />}
     </div>
