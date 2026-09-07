@@ -1015,6 +1015,31 @@ function pivotFacturationFournisseur(rows) {
   return [...byMonth.values()].sort((a, b) => a.mois.localeCompare(b.mois));
 }
 
+// Même structure que pivotFacturationFournisseur, mais en quantités brutes
+// (tonnes / unités), sans conversion monétaire.
+function pivotFacturationFournisseurQuantites(rows) {
+  const byMonth = new Map();
+  for (const m of TARGET_MONTHS) {
+    byMonth.set(m, {
+      mois: m,
+      categories: Object.fromEntries(
+        FACTURATION_CATEGORIES.map((c) => [c, { darty_tonnes: 0, darty_eligible: 0, revolog_tonnes: 0, revolog_eligible: 0 }])
+      ),
+    });
+  }
+  for (const r of rows || []) {
+    if (!byMonth.has(r.mois)) continue;
+    const bucket = matchSupplierBucket(r.supplier_name);
+    if (!bucket) continue;
+    const cat = FACTURATION_CATEGORIES.includes(r.categorie) ? r.categorie : null;
+    if (!cat) continue;
+    const monthBucket = byMonth.get(r.mois).categories[cat];
+    monthBucket[`${bucket}_tonnes`] += r.tonnes || 0;
+    monthBucket[`${bucket}_eligible`] += r.nb_eligible_tri || 0;
+  }
+  return [...byMonth.values()].sort((a, b) => a.mois.localeCompare(b.mois));
+}
+
 function FacturationDashboard({ data }) {
   const months = pivotFacturation(data?.facturation);
   const rows = months.map((r) => ({
@@ -1041,6 +1066,12 @@ function FacturationDashboard({ data }) {
     );
     const grandTotal = round2(grand.darty_tonnage + grand.darty_eligible + grand.revolog_tonnage + grand.revolog_eligible + palettes);
     return { mois: mb.mois, categories: mb.categories, palettes: round2(palettes), total: grandTotal };
+  });
+
+  const fournisseurQuantiteBuckets = pivotFacturationFournisseurQuantites(data?.facturation_fournisseur).map((mb) => {
+    const palettesRow = months.find((x) => x.mois === mb.mois);
+    const palettes = palettesRow ? palettesRow.nb_palettes : 0;
+    return { mois: mb.mois, categories: mb.categories, palettes };
   });
 
   return (
@@ -1118,6 +1149,54 @@ function FacturationDashboard({ data }) {
                           {mb.total}
                         </td>
                       </>
+                    )}
+                  </tr>
+                ))}
+              </React.Fragment>
+            ))}
+          </tbody>
+        </table>
+      </Panel>
+
+      <Panel title="Détail par fournisseur — quantités (3 derniers mois)" height={fournisseurQuantiteBuckets.length * 3 * 38 + 130}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+          <thead>
+            <tr>
+              <th></th>
+              <th></th>
+              <th colSpan={2} style={{ textAlign: "center", padding: "6px", color: COLORS.teal, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase", borderBottom: `1px solid ${COLORS.panelBorder}` }}>Darty</th>
+              <th colSpan={2} style={{ textAlign: "center", padding: "6px", color: COLORS.blue, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase", borderBottom: `1px solid ${COLORS.panelBorder}` }}>Revolog</th>
+              <th></th>
+            </tr>
+            <tr style={{ borderBottom: `1px solid ${COLORS.panelBorder}` }}>
+              <th style={{ textAlign: "left", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Mois</th>
+              <th style={{ textAlign: "left", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Catégorie</th>
+              <th style={{ textAlign: "right", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Tonnage (t)</th>
+              <th style={{ textAlign: "right", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Unités éligibles au tri</th>
+              <th style={{ textAlign: "right", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Tonnage (t)</th>
+              <th style={{ textAlign: "right", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Unités éligibles au tri</th>
+              <th style={{ textAlign: "right", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Palettes</th>
+            </tr>
+          </thead>
+          <tbody>
+            {fournisseurQuantiteBuckets.map((mb) => (
+              <React.Fragment key={mb.mois}>
+                {FACTURATION_CATEGORIES.map((cat, idx) => (
+                  <tr key={cat} style={{ borderBottom: idx === FACTURATION_CATEGORIES.length - 1 ? `2px solid ${COLORS.panelBorder}` : `1px solid ${COLORS.panelBorder}` }}>
+                    {idx === 0 && (
+                      <td rowSpan={FACTURATION_CATEGORIES.length} style={{ padding: "8px 6px", color: COLORS.text, fontFamily: "'IBM Plex Mono', monospace", verticalAlign: "top" }}>
+                        {new Date(mb.mois).toLocaleDateString("fr-FR", { month: "long", year: "numeric" })}
+                      </td>
+                    )}
+                    <td style={{ padding: "8px 6px", color: COLORS.text }}>{cat}</td>
+                    <td style={{ padding: "8px 6px", color: COLORS.text, textAlign: "right", fontFamily: "'IBM Plex Mono', monospace" }}>{(Math.round(mb.categories[cat].darty_tonnes * 1000) / 1000).toFixed(3)}</td>
+                    <td style={{ padding: "8px 6px", color: COLORS.text, textAlign: "right", fontFamily: "'IBM Plex Mono', monospace" }}>{mb.categories[cat].darty_eligible}</td>
+                    <td style={{ padding: "8px 6px", color: COLORS.text, textAlign: "right", fontFamily: "'IBM Plex Mono', monospace" }}>{(Math.round(mb.categories[cat].revolog_tonnes * 1000) / 1000).toFixed(3)}</td>
+                    <td style={{ padding: "8px 6px", color: COLORS.text, textAlign: "right", fontFamily: "'IBM Plex Mono', monospace" }}>{mb.categories[cat].revolog_eligible}</td>
+                    {idx === 0 && (
+                      <td rowSpan={FACTURATION_CATEGORIES.length} style={{ padding: "8px 6px", color: COLORS.text, textAlign: "right", fontFamily: "'IBM Plex Mono', monospace", verticalAlign: "top" }}>
+                        {mb.palettes}
+                      </td>
                     )}
                   </tr>
                 ))}
