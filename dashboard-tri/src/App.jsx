@@ -973,54 +973,50 @@ function Dashboard({ data, onRefresh, onLock }) {
   );
 }
 
-const FACTURATION_CATEGORIES = ["Froid", "Hors froid", "PAM"];
-
 function pivotFacturation(rows) {
   const byMonth = new Map();
   for (const m of TARGET_MONTHS) {
-    byMonth.set(m, {
-      mois: m,
-      nb_palettes: 0,
-      categories: Object.fromEntries(FACTURATION_CATEGORIES.map((c) => [c, { tonnes: 0, nb_eligible_tri: 0 }])),
-    });
+    byMonth.set(m, { mois: m, tonnes: 0, nb_eligible_tri: 0, nb_palettes: 0 });
   }
   for (const r of rows || []) {
     if (!byMonth.has(r.mois)) continue;
-    const bucket = byMonth.get(r.mois);
-    bucket.nb_palettes = r.nb_palettes || 0; // total mensuel, identique sur chaque catégorie
-    if (FACTURATION_CATEGORIES.includes(r.categorie)) {
-      bucket.categories[r.categorie] = { tonnes: r.tonnes || 0, nb_eligible_tri: r.nb_eligible_tri || 0 };
-    }
+    byMonth.set(r.mois, {
+      mois: r.mois,
+      tonnes: r.tonnes || 0,
+      nb_eligible_tri: r.nb_eligible_tri || 0,
+      nb_palettes: r.nb_palettes || 0,
+    });
   }
   return [...byMonth.values()].sort((a, b) => a.mois.localeCompare(b.mois));
 }
 
-// Agrège les 3 catégories pour retomber sur un total mensuel (graphique, KPI).
-function aggregateFacturationMonth(bucket) {
-  const tonnes = FACTURATION_CATEGORIES.reduce((s, c) => s + bucket.categories[c].tonnes, 0);
-  const nb_eligible_tri = FACTURATION_CATEGORIES.reduce((s, c) => s + bucket.categories[c].nb_eligible_tri, 0);
-  return { mois: bucket.mois, tonnes, nb_eligible_tri, nb_palettes: bucket.nb_palettes };
-}
+const FACTURATION_CATEGORIES = ["Froid", "Hors froid", "PAM"];
 
 function pivotFacturationFournisseur(rows) {
   const byMonth = new Map();
   for (const m of TARGET_MONTHS) {
-    byMonth.set(m, { mois: m, darty_tonnage: 0, darty_eligible: 0, revolog_tonnage: 0, revolog_eligible: 0 });
+    byMonth.set(m, {
+      mois: m,
+      categories: Object.fromEntries(
+        FACTURATION_CATEGORIES.map((c) => [c, { darty_tonnage: 0, darty_eligible: 0, revolog_tonnage: 0, revolog_eligible: 0 }])
+      ),
+    });
   }
   for (const r of rows || []) {
     if (!byMonth.has(r.mois)) continue;
     const bucket = matchSupplierBucket(r.supplier_name);
     if (!bucket) continue;
-    const row = byMonth.get(r.mois);
-    row[`${bucket}_tonnage`] += (r.tonnes || 0) * 98;
-    row[`${bucket}_eligible`] += (r.nb_eligible_tri || 0) * 2;
+    const cat = FACTURATION_CATEGORIES.includes(r.categorie) ? r.categorie : null;
+    if (!cat) continue;
+    const monthBucket = byMonth.get(r.mois).categories[cat];
+    monthBucket[`${bucket}_tonnage`] += (r.tonnes || 0) * 98;
+    monthBucket[`${bucket}_eligible`] += (r.nb_eligible_tri || 0) * 2;
   }
   return [...byMonth.values()].sort((a, b) => a.mois.localeCompare(b.mois));
 }
 
 function FacturationDashboard({ data }) {
-  const monthBuckets = pivotFacturation(data?.facturation);
-  const months = monthBuckets.map(aggregateFacturationMonth);
+  const months = pivotFacturation(data?.facturation);
   const rows = months.map((r) => ({
     mois: r.mois,
     montant_tonnage: Math.round(r.tonnes * 98 * 100) / 100,
@@ -1029,19 +1025,22 @@ function FacturationDashboard({ data }) {
   }));
   const total = rows.reduce((acc, r) => acc + r.montant_tonnage + r.montant_eligible + r.montant_palettes, 0);
 
-  const fournisseurRows = pivotFacturationFournisseur(data?.facturation_fournisseur).map((r) => {
-    const palettesRow = rows.find((x) => x.mois === r.mois);
+  const round2 = (n) => Math.round(n * 100) / 100;
+  const fournisseurMonthBuckets = pivotFacturationFournisseur(data?.facturation_fournisseur).map((mb) => {
+    const palettesRow = rows.find((x) => x.mois === mb.mois);
     const palettes = palettesRow ? palettesRow.montant_palettes : 0;
-    const round2 = (n) => Math.round(n * 100) / 100;
-    return {
-      mois: r.mois,
-      darty_tonnage: round2(r.darty_tonnage),
-      darty_eligible: round2(r.darty_eligible),
-      revolog_tonnage: round2(r.revolog_tonnage),
-      revolog_eligible: round2(r.revolog_eligible),
-      palettes,
-      total: round2(r.darty_tonnage + r.darty_eligible + r.revolog_tonnage + r.revolog_eligible + palettes),
-    };
+    const grand = FACTURATION_CATEGORIES.reduce(
+      (acc, c) => {
+        acc.darty_tonnage += mb.categories[c].darty_tonnage;
+        acc.darty_eligible += mb.categories[c].darty_eligible;
+        acc.revolog_tonnage += mb.categories[c].revolog_tonnage;
+        acc.revolog_eligible += mb.categories[c].revolog_eligible;
+        return acc;
+      },
+      { darty_tonnage: 0, darty_eligible: 0, revolog_tonnage: 0, revolog_eligible: 0 }
+    );
+    const grandTotal = round2(grand.darty_tonnage + grand.darty_eligible + grand.revolog_tonnage + grand.revolog_eligible + palettes);
+    return { mois: mb.mois, categories: mb.categories, palettes: round2(palettes), total: grandTotal };
   });
 
   return (
@@ -1073,47 +1072,11 @@ function FacturationDashboard({ data }) {
         </ResponsiveContainer>
       </Panel>
 
-      <Panel title="Détail par catégorie — Froid / Hors froid / PAM" height={monthBuckets.length * 3 * 38 + 100}>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-          <thead>
-            <tr style={{ borderBottom: `1px solid ${COLORS.panelBorder}` }}>
-              <th style={{ textAlign: "left", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Mois</th>
-              <th style={{ textAlign: "left", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Catégorie</th>
-              <th style={{ textAlign: "right", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Tonnes</th>
-              <th style={{ textAlign: "right", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Unités éligibles au tri</th>
-              <th style={{ textAlign: "right", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Palettes (mois)</th>
-            </tr>
-          </thead>
-          <tbody>
-            {monthBuckets.map((mb) => (
-              <React.Fragment key={mb.mois}>
-                {FACTURATION_CATEGORIES.map((cat, idx) => (
-                  <tr key={cat} style={{ borderBottom: idx === FACTURATION_CATEGORIES.length - 1 ? `2px solid ${COLORS.panelBorder}` : `1px solid ${COLORS.panelBorder}` }}>
-                    {idx === 0 && (
-                      <td rowSpan={FACTURATION_CATEGORIES.length} style={{ padding: "8px 6px", color: COLORS.text, fontFamily: "'IBM Plex Mono', monospace", verticalAlign: "top" }}>
-                        {new Date(mb.mois).toLocaleDateString("fr-FR", { month: "long", year: "numeric" })}
-                      </td>
-                    )}
-                    <td style={{ padding: "8px 6px", color: COLORS.text }}>{cat}</td>
-                    <td style={{ padding: "8px 6px", color: COLORS.text, textAlign: "right", fontFamily: "'IBM Plex Mono', monospace" }}>{mb.categories[cat].tonnes.toFixed(3)}</td>
-                    <td style={{ padding: "8px 6px", color: COLORS.text, textAlign: "right", fontFamily: "'IBM Plex Mono', monospace" }}>{mb.categories[cat].nb_eligible_tri}</td>
-                    {idx === 0 && (
-                      <td rowSpan={FACTURATION_CATEGORIES.length} style={{ padding: "8px 6px", color: COLORS.text, textAlign: "right", fontFamily: "'IBM Plex Mono', monospace", verticalAlign: "top" }}>
-                        {mb.nb_palettes}
-                      </td>
-                    )}
-                  </tr>
-                ))}
-              </React.Fragment>
-            ))}
-          </tbody>
-        </table>
-      </Panel>
-
-      <Panel title="Détail par fournisseur (3 derniers mois)" height={rows.length * 44 + 100}>
+      <Panel title="Détail par fournisseur (3 derniers mois)" height={fournisseurMonthBuckets.length * 3 * 38 + 130}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
           <thead>
             <tr>
+              <th></th>
               <th></th>
               <th colSpan={2} style={{ textAlign: "center", padding: "6px", color: COLORS.teal, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase", borderBottom: `1px solid ${COLORS.panelBorder}` }}>Darty</th>
               <th colSpan={2} style={{ textAlign: "center", padding: "6px", color: COLORS.blue, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase", borderBottom: `1px solid ${COLORS.panelBorder}` }}>Revolog</th>
@@ -1122,6 +1085,7 @@ function FacturationDashboard({ data }) {
             </tr>
             <tr style={{ borderBottom: `1px solid ${COLORS.panelBorder}` }}>
               <th style={{ textAlign: "left", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Mois</th>
+              <th style={{ textAlign: "left", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Catégorie</th>
               <th style={{ textAlign: "right", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Tonnage (€)</th>
               <th style={{ textAlign: "right", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Unités éligibles au tri (€)</th>
               <th style={{ textAlign: "right", padding: "8px 6px", color: COLORS.muted, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400, fontSize: 11, textTransform: "uppercase" }}>Tonnage (€)</th>
@@ -1131,18 +1095,33 @@ function FacturationDashboard({ data }) {
             </tr>
           </thead>
           <tbody>
-            {fournisseurRows.map((r, i) => (
-              <tr key={i} style={{ borderBottom: `1px solid ${COLORS.panelBorder}` }}>
-                <td style={{ padding: "8px 6px", color: COLORS.text, fontFamily: "'IBM Plex Mono', monospace" }}>
-                  {new Date(r.mois).toLocaleDateString("fr-FR", { month: "long", year: "numeric" })}
-                </td>
-                <td style={{ padding: "8px 6px", color: COLORS.text, textAlign: "right", fontFamily: "'IBM Plex Mono', monospace" }}>{r.darty_tonnage}</td>
-                <td style={{ padding: "8px 6px", color: COLORS.text, textAlign: "right", fontFamily: "'IBM Plex Mono', monospace" }}>{r.darty_eligible}</td>
-                <td style={{ padding: "8px 6px", color: COLORS.text, textAlign: "right", fontFamily: "'IBM Plex Mono', monospace" }}>{r.revolog_tonnage}</td>
-                <td style={{ padding: "8px 6px", color: COLORS.text, textAlign: "right", fontFamily: "'IBM Plex Mono', monospace" }}>{r.revolog_eligible}</td>
-                <td style={{ padding: "8px 6px", color: COLORS.text, textAlign: "right", fontFamily: "'IBM Plex Mono', monospace" }}>{r.palettes}</td>
-                <td style={{ padding: "8px 6px", color: COLORS.text, textAlign: "right", fontFamily: "'IBM Plex Mono', monospace", fontWeight: 700 }}>{r.total}</td>
-              </tr>
+            {fournisseurMonthBuckets.map((mb) => (
+              <React.Fragment key={mb.mois}>
+                {FACTURATION_CATEGORIES.map((cat, idx) => (
+                  <tr key={cat} style={{ borderBottom: idx === FACTURATION_CATEGORIES.length - 1 ? `2px solid ${COLORS.panelBorder}` : `1px solid ${COLORS.panelBorder}` }}>
+                    {idx === 0 && (
+                      <td rowSpan={FACTURATION_CATEGORIES.length} style={{ padding: "8px 6px", color: COLORS.text, fontFamily: "'IBM Plex Mono', monospace", verticalAlign: "top" }}>
+                        {new Date(mb.mois).toLocaleDateString("fr-FR", { month: "long", year: "numeric" })}
+                      </td>
+                    )}
+                    <td style={{ padding: "8px 6px", color: COLORS.text }}>{cat}</td>
+                    <td style={{ padding: "8px 6px", color: COLORS.text, textAlign: "right", fontFamily: "'IBM Plex Mono', monospace" }}>{Math.round(mb.categories[cat].darty_tonnage * 100) / 100}</td>
+                    <td style={{ padding: "8px 6px", color: COLORS.text, textAlign: "right", fontFamily: "'IBM Plex Mono', monospace" }}>{Math.round(mb.categories[cat].darty_eligible * 100) / 100}</td>
+                    <td style={{ padding: "8px 6px", color: COLORS.text, textAlign: "right", fontFamily: "'IBM Plex Mono', monospace" }}>{Math.round(mb.categories[cat].revolog_tonnage * 100) / 100}</td>
+                    <td style={{ padding: "8px 6px", color: COLORS.text, textAlign: "right", fontFamily: "'IBM Plex Mono', monospace" }}>{Math.round(mb.categories[cat].revolog_eligible * 100) / 100}</td>
+                    {idx === 0 && (
+                      <>
+                        <td rowSpan={FACTURATION_CATEGORIES.length} style={{ padding: "8px 6px", color: COLORS.text, textAlign: "right", fontFamily: "'IBM Plex Mono', monospace", verticalAlign: "top" }}>
+                          {mb.palettes}
+                        </td>
+                        <td rowSpan={FACTURATION_CATEGORIES.length} style={{ padding: "8px 6px", color: COLORS.text, textAlign: "right", fontFamily: "'IBM Plex Mono', monospace", fontWeight: 700, verticalAlign: "top" }}>
+                          {mb.total}
+                        </td>
+                      </>
+                    )}
+                  </tr>
+                ))}
+              </React.Fragment>
             ))}
           </tbody>
         </table>
