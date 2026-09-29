@@ -327,10 +327,12 @@ function buildStockProjection(stockActuel, historique, planningRows, weeksHorizo
 
 function pivotLotsByCateg(lots, palettes) {
   const byLot = new Map();
+  const bySaleLotName = new Map(); // sale_lot_name -> clé byLot, pour la correspondance des palettes
   for (const r of lots || []) {
     const key = `${r.client_name || ""}|${r.sale_lot_name || ""}`;
     if (!byLot.has(key)) {
       byLot.set(key, { client_name: r.client_name, sale_lot_name: r.sale_lot_name, gemf: 0, gemhf: 0, nb_palettes: 0, poids_kg: 0, date_depart: r.date_depart || null });
+      if (r.sale_lot_name) bySaleLotName.set(r.sale_lot_name, key);
     }
     const row = byLot.get(key);
     if (!row.date_depart && r.date_depart) row.date_depart = r.date_depart;
@@ -340,8 +342,10 @@ function pivotLotsByCateg(lots, palettes) {
     row.poids_kg += r.poids_kg || 0;
   }
   for (const p of palettes || []) {
-    const key = `${p.client_name || ""}|${p.sale_lot_name || ""}`;
-    if (byLot.has(key)) byLot.get(key).nb_palettes = p.nb_palettes || 0;
+    // Correspondance par nom de lot SEUL : le nom du client peut changer
+    // dans le temps (renommage côté source), pas le nom du lot.
+    const lotKey = bySaleLotName.get(p.sale_lot_name || "");
+    if (lotKey && byLot.has(lotKey)) byLot.get(lotKey).nb_palettes = p.nb_palettes || 0;
   }
   return [...byLot.values()]
     .map((r) => ({ ...r, total: r.gemf + r.gemhf, poids_kg: Math.round(r.poids_kg * 100) / 100 }))
