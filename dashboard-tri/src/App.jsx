@@ -224,6 +224,36 @@ function formatDateFr(value) {
   return d.toLocaleDateString("fr-FR");
 }
 
+// Exporte les lots (ayant une date de départ) au format attendu par les ESS :
+// Date d'envoi ; Nom ESS destinataire ; Qté GEMHF ; Qté GEMF ; Total ; Palettes ; Commentaire
+function exportLotsCsv(lots) {
+  const header = ["Date d'envoi", "Nom ESS destinataire", "Qté GEMHF", "Qté GEMF", "Total", "Palettes", "Commentaire"];
+  const dataRows = (lots || [])
+    .filter((r) => r.date_depart)
+    .sort((a, b) => new Date(a.date_depart) - new Date(b.date_depart))
+    .map((r) => [
+      formatDateFr(r.date_depart),
+      r.client_name || "",
+      r.gemhf || 0,
+      r.gemf || 0,
+      (r.gemhf || 0) + (r.gemf || 0),
+      r.nb_palettes || 0,
+      r.sale_lot_name || "",
+    ]);
+  const escapeCell = (cell) => `"${String(cell).replace(/"/g, '""')}"`;
+  const csvLines = [header, ...dataRows].map((row) => row.map(escapeCell).join(";"));
+  const csvContent = "\uFEFF" + csvLines.join("\r\n");
+  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `lots_seconde_vie_${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
 // Projette le stock disponible semaine par semaine pour GEM HF et GEM F :
 // stock = stock actuel + entrées moyennes historiques (mensuelles, ramenées
 // à la semaine) − sorties prévues (planning), afin d'identifier une future
@@ -562,8 +592,16 @@ function OSVDashboard({ data, onLock, token, onRefresh }) {
         </div>
       </Panel>
 
-      <Panel title="Lots par client" height={lots.length * 40 + 60}>
-        <div style={{ height: "100%", overflowY: "auto" }}>
+      <Panel title="Lots par client" height={lots.length * 40 + 96}>
+        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
+          <button
+            onClick={() => exportLotsCsv(lots)}
+            style={{ background: "transparent", border: `1px solid ${COLORS.teal}`, color: COLORS.teal, borderRadius: 3, padding: "6px 12px", cursor: "pointer", fontFamily: "'IBM Plex Mono', monospace", fontSize: 12 }}
+          >
+            Exporter (.csv)
+          </button>
+        </div>
+        <div style={{ height: "calc(100% - 40px)", overflowY: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
             <thead>
               <tr style={{ borderBottom: `1px solid ${COLORS.panelBorder}` }}>
