@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { requestDashboard } from "./dashboardRequest.js";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, LineChart, Line, Legend, LabelList, ReferenceLine
@@ -15,19 +16,8 @@ const COLORS = {
 
 const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap');`;
 
-async function fetchDashboard(token) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_partner_dashboard`, {
-    method: "POST",
-    headers: {
-      apikey: SUPABASE_ANON_KEY,
-      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ p_token: token }),
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.message || "Code d'accès incorrect");
-  return data;
+function fetchDashboard(token) {
+  return requestDashboard(SUPABASE_URL, SUPABASE_ANON_KEY, token);
 }
 
 async function fetchEcosystemStatus(token) {
